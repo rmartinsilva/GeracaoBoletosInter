@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/rogeriomartins/github/php/delollo/referencia/app/Http/Controllers/Painel/**)",
+      "Read(//home/rogeriomartins/github/php/delollo/referencia/app/Repositories/**)",
+      "Read(//home/rogeriomartins/github/php/delollo/referencia/app/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
