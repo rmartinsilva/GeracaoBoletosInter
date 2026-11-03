@@ -227,15 +227,15 @@ O Laravel Boost configurou automaticamente diretrizes no [CLAUDE.md](CLAUDE.md) 
 
 1. **Foundation Rules** - Convenções gerais do projeto
 2. **Boost Rules** - Como usar ferramentas MCP
-3. **PHP Rules** - Padrões de código PHP 8.2
+3. **PHP Rules** - Padrões de código PHP 8.4
 4. **Laravel Core Rules** - Melhores práticas Laravel
-5. **Laravel 12 Rules** - Específico para Laravel 12
+5. **Laravel 13 Rules** - Específico para Laravel 13
 6. **Pint Rules** - Formatação de código
 7. **PHPUnit Rules** - Testes
 
 ### Benefícios
 
-- ✅ **Menos erros** - IA usa docs versionadas (Laravel 12 específico)
+- ✅ **Menos erros** - IA usa docs versionadas (Laravel 13 específico)
 - ✅ **Código melhor** - Segue convenções do Laravel automaticamente
 - ✅ **Debug rápido** - Ferramentas integradas (Tinker, DB queries)
 - ✅ **Documentação precisa** - 17.000+ entradas específicas para versões instaladas
@@ -245,4 +245,4 @@ O Laravel Boost configurou automaticamente diretrizes no [CLAUDE.md](CLAUDE.md) 
 
 - **Repositório Oficial:** https://github.com/laravel/boost
 - **Documentação:** https://boost.laravel.com
-- **Versão Instalada:** v1.3.0 (beta)
+- **Versão Instalada:** v2.10.4

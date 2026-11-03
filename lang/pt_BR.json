@@ -1,0 +1,19 @@
+{
+    "(and :count more error)": "(e mais :count erro)",
+    "(and :count more errors)": "(e mais :count erros)",
+    "The given data was invalid.": "Os dados informados são inválidos.",
+    "Forbidden": "Acesso negado",
+    "Go to page :page": "Ir para a página :page",
+    "Not Found": "Página não encontrada",
+    "Page Expired": "Página expirada",
+    "Pagination Navigation": "Navegação da paginação",
+    "Payment Required": "Pagamento necessário",
+    "Server Error": "Erro no servidor",
+    "Service Unavailable": "Serviço indisponível",
+    "Showing": "Mostrando",
+    "Too Many Requests": "Muitas requisições",
+    "Unauthorized": "Não autorizado",
+    "of": "de",
+    "results": "resultados",
+    "to": "a"
+}

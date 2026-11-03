@@ -1,10 +1,11 @@
+@inject('dataHora', 'App\Services\DataHoraService')
 <!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $titulo ?? 'Painel Administrativo - De Lollo Agronegócios' }}</title>
+    <title>{{ $titulo ?? 'Painel Administrativo - Geração de Cobranças' }}</title>
 
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -107,8 +108,8 @@
     <aside id="sidebar" class="sidebar fixed left-0 top-0 w-64 z-50">
         <!-- Header do Sidebar -->
         <div class="sidebar-header p-4">
-            <img src="{{ url('/assets/images/logo.png') }}" alt="De Lollo Agronegócios" class="w-full h-auto mb-2" onerror="this.style.display='none'">
-            <h2 class="text-white text-center font-bold text-lg">De Lollo Agronegócios</h2>
+            <img src="{{ url('/assets/images/logo.png') }}" alt="Geração de Cobranças" class="w-full h-auto mb-2" onerror="this.style.display='none'">
+            <h2 class="text-white text-center font-bold text-lg">Geração de Cobranças</h2>
         </div>
 
         <!-- Menu -->
@@ -120,127 +121,42 @@
                         <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                         </svg>
-                        Dashboard - Painel – TechPro Core
+                        Dashboard
                     </a>
                 </li>
 
                 @if (isset($listaPermissoes))
-                    <!-- Usuários -->
-                    @if (in_array('usuario_visualizar', $listaPermissoes))
+                    <!-- Clientes -->
+                    @if (in_array('cliente_visualizar', $listaPermissoes))
                         <li>
-                            <a href="/painel/usuarios" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                                </svg>
-                                Usuários
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Banner Principal -->
-                    @if (in_array('bannerPrincipal_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/bannerPrincipal" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
-                                Banner Principal
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Empresa -->
-                    @if (in_array('empresa_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/empresa" class="sidebar-menu-item">
+                            <a href="{{ route('clientes.index') }}" class="sidebar-menu-item {{ request()->routeIs('clientes.*') ? 'active' : '' }}">
                                 <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                                </svg>
-                                Empresa
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Clientes -->
-                    @if (in_array('clientes_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/clientes" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                                 </svg>
                                 Clientes
                             </a>
                         </li>
                     @endif
 
-                    <!-- Serviços -->
-                    @if (in_array('servicos_visualizar', $listaPermissoes))
+                    @if (in_array('cliente_editar', $listaPermissoes))
                         <li>
-                            <a href="/painel/servicos" class="sidebar-menu-item">
+                            <a href="{{ route('cobranca.email.edit') }}" class="sidebar-menu-item {{ request()->routeIs('cobranca.email.*') ? 'active' : '' }}">
                                 <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                                 </svg>
-                                Serviços
+                                E-mail da cobrança
                             </a>
                         </li>
                     @endif
 
-                    <!-- Portfólio -->
-                    @if (in_array('projetos_visualizar', $listaPermissoes))
+                    <!-- Usuários -->
+                    @if (in_array('usuario_visualizar', $listaPermissoes))
                         <li>
-                            <a href="/painel/projetos" class="sidebar-menu-item">
+                            <a href="{{ route('usuarios.index') }}" class="sidebar-menu-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">
                                 <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                                 </svg>
-                                Portfólio
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Lançamentos -->
-                    @if (in_array('lancamentos_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/lancamentos" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                </svg>
-                                Lançamentos
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Equipe -->
-                    @if (in_array('equipe_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/equipe" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                </svg>
-                                Equipe
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Depoimentos -->
-                    @if (in_array('depoimentos_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/depoimento" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                                </svg>
-                                Depoimentos
-                            </a>
-                        </li>
-                    @endif
-
-                    <!-- Notícias -->
-                    @if (in_array('noticias_visualizar', $listaPermissoes))
-                        <li>
-                            <a href="/painel/noticia" class="sidebar-menu-item">
-                                <svg class="w-5 h-5 inline-block mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
-                                </svg>
-                                Notícias
+                                Usuários
                             </a>
                         </li>
                     @endif
@@ -272,7 +188,7 @@
                 </button>
 
                 <!-- Page Title -->
-                <h1 class="text-2xl font-bold painel-text-primary">{{ $titulo ?? 'Dashboard - Painel – TechPro Core' }}</h1>
+                <h1 class="text-2xl font-bold painel-text-primary">{{ $titulo ?? 'Dashboard' }}</h1>
 
                 <!-- User Info -->
                 <div class="flex items-center space-x-3">
@@ -302,7 +218,7 @@
         <!-- Footer -->
         <footer class="painel-footer-container px-6 py-4 mt-8">
             <div class="flex flex-col md:flex-row items-center justify-between text-sm">
-                <p class="font-medium painel-text-secondary">© {{ date('Y') }} <a href="https://www.usinaweb.com.br" target="_blank">USINAWEB - TECH PRO</a>  - Todos os direitos reservados</p>
+                <p class="font-medium painel-text-secondary">© {{ $dataHora->agora()->year }} <a href="https://www.usinaweb.com.br" target="_blank">USINAWEB - TECH PRO</a>  - Todos os direitos reservados</p>
                 <div class="flex flex-col md:flex-row items-center mt-3 md:mt-0">
                     
                     <div class="w-full mt-2 md:mt-0">

@@ -261,6 +261,68 @@ body {
     transform: translateY(0);
 }
 
+/* Ações do login */
+.login-actions {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 0.75rem;
+}
+
+.login-btn {
+    min-height: 3rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.85rem;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.login-btn svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+}
+
+.login-btn-enter {
+    background: linear-gradient(135deg, #97c45a 0%, var(--painel-primary-dark) 100%);
+    color: #fff;
+    border: none;
+    box-shadow: 0 12px 22px -10px rgba(107, 142, 58, 0.85);
+}
+
+.login-btn-enter:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 26px -10px rgba(107, 142, 58, 0.95);
+}
+
+.login-btn-enter:active {
+    transform: translateY(0);
+}
+
+.login-btn-back {
+    background: #fff;
+    color: var(--painel-secondary);
+    border: 1.5px solid var(--painel-border-medium);
+}
+
+.login-btn-back:hover {
+    border-color: var(--painel-primary);
+    color: var(--painel-primary-dark);
+    background: #f4f8ec;
+}
+
+.login-btn:focus-visible {
+    outline: 2px solid var(--painel-primary);
+    outline-offset: 2px;
+}
+
 /* Ícone dentro do botão */
 .painel-btn-icon {
     width: 1.25rem;
@@ -362,6 +424,10 @@ body {
 
     .usinaweb-logo-wrapper {
         margin-top: 0.5rem;
+    }
+
+    .login-actions {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -744,6 +810,18 @@ body {
 }
 
 .tema-escuro .painel-btn-secondary:hover {
+    background: var(--painel-dark-bg-primary);
+}
+
+.tema-escuro .login-btn-back {
+    background: var(--painel-dark-bg-secondary);
+    color: var(--painel-dark-text-primary);
+    border-color: var(--painel-dark-border);
+}
+
+.tema-escuro .login-btn-back:hover {
+    border-color: var(--painel-primary);
+    color: var(--painel-primary-light);
     background: var(--painel-dark-bg-primary);
 }
 

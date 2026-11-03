@@ -2,11 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Acesso;
-use App\Models\Grupo;
-use App\Models\Usuario;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder

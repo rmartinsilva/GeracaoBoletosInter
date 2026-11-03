@@ -1,61 +1,173 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Geração de Boletos Inter
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplicação web em Laravel para gerenciar clientes e cobranças mensais (assinaturas) e integrar com a API de Cobranças do Banco Inter (boleto com Pix).
 
-## About Laravel
+## O que já funciona (e o que ainda não funciona)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+O painel já cobre o cadastro e o acompanhamento das cobranças:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- Painel administrativo em `/painel` com login por `login` (não por e-mail), grupos de usuário e permissões por chave (`usuario_*` e `cliente_*`).
+- Cadastro de usuários e de clientes (nome, e-mail, contato e os dados do pagador: tipo de pessoa, CPF ou CNPJ, endereço, cidade, UF e CEP).
+- Cadastro de assinaturas: descrição, valor, periodicidade (mensal, anual ou avulso), dia de vencimento, dia de geração, data de início e de fim, e situação (ativa ou encerrada).
+- Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento.
+- Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. Quem dispara isso no dia a dia é o comando `php artisan cobrancas:gerar`.
 
-## Learning Laravel
+## Tecnologias
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.4
+- Laravel 13
+- Tailwind CSS 4 (site público via Vite; painel via CDN e arquivos estáticos próprios)
+- SQLite (padrão do `.env.example`)
+- PHPUnit 12
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## Requisitos e instalação
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Requisitos: PHP 8.4, Composer e Node.js.
 
-## Laravel Sponsors
+```bash
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate --seed
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+O `.env.example` usa SQLite por padrão. Para outro banco, ajuste as variáveis `DB_*` do `.env`.
 
-### Premium Partners
+Para subir tudo em desenvolvimento (servidor, filas, logs e Vite juntos):
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+composer run dev
+```
 
-## Contributing
+O site público fica em `http://localhost:8000` e o painel em `http://localhost:8000/painel`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Acesso ao painel
 
-## Code of Conduct
+Depois de `php artisan migrate --seed`, o usuário administrador entra com:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- Login: `admin`
+- Senha: `admin123`
 
-## Security Vulnerabilities
+> **Troque essa senha imediatamente** antes de usar a aplicação fora da sua máquina. As permissões do usuário valem a partir do próximo login depois de qualquer mudança nos grupos dele.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Rotas principais:
 
-## License
+- `/` — landing page pública.
+- `/painel/login` e `/painel/logout` — autenticação do painel.
+- `/painel` — dashboard (requer sessão autenticada no guard `painel`).
+- `/painel/usuarios`, `/painel/clientes` — cadastros (protegidos por permissão).
+- `/painel/cobranca/email` — texto do e-mail enviado com o boleto (quem tem permissão `cliente_editar`).
+- `/painel/clientes/{cliente}/assinaturas/...` — assinaturas e lançamentos do cliente.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Fuso horário
+
+Os horários são gravados em UTC e convertidos para `America/Sao_Paulo` apenas na exibição (`APP_DISPLAY_TIMEZONE`).
+
+## Configuração do Banco Inter
+
+A API usada é a Cobrança v3 (boleto com Pix). A v2 está descontinuada. Documentação: <https://developers.inter.co/docs/introducao/nossas-apis> e referência da API: <https://developers.inter.co/references/cobranca-bolepix>.
+
+### Sandbox
+
+1. Crie um cadastro no portal de desenvolvedores: <https://developers.inter.co/>.
+2. Crie a integração nesse portal.
+3. Baixe o certificado (`.crt`) e a chave privada (`.key`) gerados para essa integração.
+4. Copie o `Client ID` e o `Client Secret` da integração.
+
+Sem essa integração de sandbox, o comando `php artisan inter:verificar` não consegue autenticar.
+
+### Produção
+
+A integração de produção **não** é feita no portal de desenvolvedores. Ela é criada na conta PJ, pelo Internet Banking da conta pessoa jurídica do Banco Inter. De lá saem **outro** certificado, **outra** chave, **outro** Client ID e **outro** Client Secret.
+
+Sandbox e produção **não compartilham** credenciais nem certificados: um certificado de produção é recusado pelo sandbox, e vice-versa. Se você for usar os dois ambientes, guarde dois pares de arquivos e dois pares de credenciais e alterne entre eles no `.env`.
+
+### Variáveis de ambiente (`INTER_*`)
+
+```dotenv
+INTER_AMBIENTE=sandbox                 # sandbox ou producao — é essa variável que troca o ambiente
+INTER_CLIENT_ID=                       # Client ID do ambiente escolhido
+INTER_CLIENT_SECRET=                   # Client Secret do ambiente escolhido
+INTER_CERTIFICADO=storage/app/inter/certificado.crt
+INTER_CHAVE=storage/app/inter/chave.key
+INTER_CERTIFICADO_SENHA=
+INTER_CONTA_CORRENTE=
+INTER_ESCOPOS="boleto-cobranca.read boleto-cobranca.write"
+```
+
+Detalhes importantes:
+
+- `INTER_CERTIFICADO` e `INTER_CHAVE` apontam para o certificado e a chave **daquele ambiente**. Aceitam caminho absoluto ou relativo à raiz do projeto (nos exemplos acima, `storage/app/inter/`). Esses arquivos não devem entrar no git.
+- `INTER_CERTIFICADO_SENHA` fica vazia: o Inter não entrega senha de certificado. O campo só é usado se a sua chave privada tiver passphrase.
+- `INTER_CONTA_CORRENTE` só é necessária quando a aplicação enxerga mais de uma conta no Inter. Formato: só números, com o dígito verificador, sem zeros à esquerda (vai no cabeçalho `x-conta-corrente`).
+- Os escopos padrão são `boleto-cobranca.read` e `boleto-cobranca.write`.
+- O token OAuth dura 60 minutos e é reutilizado via cache. O token e o segredo nunca são impressos em logs ou na saída de comandos.
+- O `config/inter.php` escolhe URL base, endpoint OAuth e certificado conforme `INTER_AMBIENTE`. **Depois de rodar `php artisan config:cache`, trocar de ambiente exige `php artisan config:clear`** — caso contrário a configuração antiga (e o certificado antigo) continua em cache.
+
+### Conferindo a integração
+
+```bash
+php artisan inter:verificar
+```
+
+O comando autentica no ambiente configurado em `INTER_AMBIENTE` e informa o resultado. Ele não imprime o token nem o segredo.
+
+### Emissão diária
+
+```bash
+php artisan cobrancas:gerar
+```
+
+No dia de geração da assinatura, o comando pede o boleto ao Inter. A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail, com o PDF em anexo. Não emite a mesma cobrança duas vezes.
+
+Mensal e anual precisam do dia de geração. Se esse dia for posterior ao vencimento, o boleto sai no mês anterior. O dia 31 acompanha o último dia do mês. No avulso, o campo pode ficar vazio e a cobrança sai na data de início. Sem CPF ou CNPJ e endereço completo no cliente, o lançamento fica com o erro e o banco não é chamado.
+
+O comando está agendado para todo dia às 08:00, horário de Brasília. No servidor, o cron precisa chamar `php artisan schedule:run` a cada minuto. O e-mail usa o mailer configurado em `MAIL_*`.
+
+## Testes
+
+Os testes rodam sempre em SQLite em memória, independentemente do banco configurado no `.env`:
+
+```bash
+composer test          # limpa o cache de config e roda a suíte inteira
+php artisan test       # equivalente, sem limpar o cache
+php artisan test tests/Feature/PainelAssinaturaTest.php   # um arquivo
+php artisan test --filter=test_formulario_de_assinatura_lista_as_periodicidades  # um teste
+```
+
+## Estrutura do projeto
+
+```
+app/
+├── Console/Commands/       # inter:verificar e cobrancas:gerar
+├── DTO/                    # DTOs de criação/atualização (ex.: CreateAssinaturaDTO)
+├── Enums/                  # Periodicidade, SituacaoAssinatura, SituacaoLancamento, enums de Inter
+├── Http/
+│   ├── Controllers/Painel/ # Autenticacao, Usuario, Cliente, Assinatura, e-mail da cobrança, Configuracao
+│   ├── Controllers/Site/   # landing pública
+│   └── Requests/Painel/    # Form Requests de validação do painel
+├── Models/                 # Usuario, Grupo, Acesso, Cliente, Assinatura, Lancamento
+├── Repositories/           # Contracts (interfaces) e implementações Eloquent
+├── Services/
+│   ├── Inter/              # cliente HTTP da API Cobrança v3 do Banco Inter
+│   ├── EmissorDeCobrancas.php
+│   ├── AssinaturaService.php
+│   └── DataHoraService.php # conversão UTC <-> America/Sao_Paulo
+└── Support/
+```
+
+Camadas: Controller → Service → interface de repositório (`app/Repositories/Contracts/`) → implementação Eloquent (`app/Repositories/Eloquent/`). Regras de negócio ficam nos services; acesso a dados, só nos repositórios.
+
+No painel:
+
+- **Usuários** — cadastro com vínculo a grupos; cada grupo tem acessos (permissões) por chave, como `usuario_editar` e `cliente_visualizar`.
+- **Clientes** — nome, e-mail, contato e os dados do pagador exigidos pelo boleto, com assinaturas vinculadas.
+- **Assinaturas** — descrição, valor (formato brasileiro, ex. `1.500,00`), periodicidade (`mensal`, `anual` ou `avulso`), dia de vencimento e dia de geração (1–31; no avulso os dois podem ficar vazios), data de início, data de fim e situação (`ativa`/`encerrada`). Encerrar a assinatura cancela os lançamentos abertos com vencimento posterior à data de fim.
+- **Lançamentos** — gerados por período a partir da assinatura, com situações aberto, pago e cancelado, registro de pagamento e, depois da emissão, a linha digitável, o Pix e a data do e-mail.
+- **E-mail da cobrança** — texto padrão, com os marcadores `{nome}`, `{descricao}`, `{valor}`, `{vencimento}`, `{linha_digitavel}` e `{pix}`.
+
+O tema claro/escuro do usuário fica em `configuracao_usuario` e é alternado via AJAX em `/painel/configuracao/toggle-tema`.

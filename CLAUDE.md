@@ -1,161 +1,114 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar com o código deste repositório.
 
-## Project Overview
+## Visão geral
 
-This is a Laravel 12 application using PHP 8.2+. The application follows a layered architecture with Services and Repository patterns.
+Aplicação Laravel 13 / PHP 8.4 para gerar cobranças mensais (boletos) pelo Banco Inter. Há uma landing page pública e um painel administrativo (`/painel`) com login, permissões por grupo, cadastro de usuários, cadastro de clientes (nome, e-mail, contato e os dados do pagador) e de assinaturas, com os lançamentos de cada período. A assinatura guarda o dia de vencimento e o dia de geração. O comando `cobrancas:gerar` emite o boleto nesse dia e envia o e-mail quando o PDF fica pronto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
-## Development Commands
+O código começou a partir de um template antigo de site. As sobras dele (portfólio, notícias, banners, "De Lollo", "TechPro") estão sendo removidas, e os testes de feature garantem que não voltem. O `SETUP.md` ainda descreve esse template em alguns pontos (por exemplo, lista 44 permissões, mas hoje só existem as chaves `usuario_*` e `cliente_*`). Na dúvida, confie no código.
 
-### Setup
+Código de domínio, textos da interface, mensagens de validação e documentação são em português (`Usuario`, `Grupo`, `Acesso`, `listarUsuarios()`, `criarUsuario()`). Siga esse padrão ao escrever código novo ou documentação.
+
+## Comandos de desenvolvimento
+
 ```bash
+# Primeira instalação
 composer install
+npm install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate
+touch database/database.sqlite   # o .env.example usa SQLite por padrão
+php artisan migrate --seed       # cria o usuário admin: admin / admin123
+
+# O PermissoesSeeder é idempotente: num banco já populado ele só cadastra as
+# permissões que faltam e as vincula ao grupo Administrador (a senha do admin não muda).
+php artisan db:seed
+
+# Recriar o banco do zero
+php artisan migrate:fresh --seed
+
+# Desenvolvimento: php artisan serve + queue:listen + pail + vite juntos
+composer run dev
+
+# Testes (sempre SQLite em memória, ver phpunit.xml)
+composer test                    # limpa o cache de config e roda tudo
+php artisan test tests/Feature/PainelDashboardTest.php
+php artisan test --filter=test_dashboard_mostra_apenas_clientes_e_usuarios
+
+# Formatação
+vendor/bin/pint --dirty
 ```
 
-### Running the Application
-```bash
-# Start development server
-php artisan serve
+## Arquitetura
 
-# Start queue worker
-php artisan queue:listen
+### Camadas
 
-# Tail application logs
-php artisan pail
-```
+Controller → Service (`app/Services/`) → interface do repositório (`app/Repositories/Contracts/`) → implementação Eloquent (`app/Repositories/Eloquent/`).
 
-### Testing
-```bash
-# Run all tests
-composer test
+- Controllers ficam enxutos: validam e delegam ao service. Regra de negócio fica nos services e acesso a dados, só nos repositórios. Injete a interface, nunca o repositório concreto.
+- Cada interface é ligada à sua implementação em `AppServiceProvider::register()`. Adicione o binding ali para cada repositório novo.
+- Métodos paginados dos repositórios retornam `App\Repositories\PaginationPresenter` (que encapsula o `LengthAwarePaginator`), não o paginator.
+- `ClienteController` → `ClienteService` → `ClienteRepository` é a implementação de referência para novos CRUDs. Ela segue a skill `.agent/skills/design_patterns`, adaptada ao painel Blade: Form Requests em `app/Http/Requests/Painel/`, DTOs `Create<Modulo>DTO`/`Update<Modulo>DTO` com `makeFromRequest()` em `app/DTO/<Modulos>/`, repositório devolvendo `stdClass` em `buscarPorId`/`criar`/`atualizar`, e enums em `app/Enums/`. O `UsuarioController` é anterior e ainda valida inline.
+- Valores em dinheiro são gravados como `decimal(10, 2)` e digitados no formato brasileiro (`1.500,00`); o `App\Support\ValorMonetario` converte para `1500.00` antes de validar, a partir do `StoreAssinaturaRequest`.
 
-# Run PHPUnit directly
-php artisan test
+### Integração com o Banco Inter
 
-# Run specific test file
-php artisan test tests/Feature/ExampleTest.php
+A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O cliente HTTP fica em `App\Services\Inter`. Quem grava o boleto e dispara o e-mail é o `EmissorDeCobrancas`, chamado por `php artisan cobrancas:gerar` (agendado todo dia às 08:00, horário de Brasília). A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail.
 
-# Run specific test method
-php artisan test --filter testExample
-```
+- `config/inter.php` escolhe o ambiente por `INTER_AMBIENTE` (`sandbox` ou `producao`). A URL base, o OAuth em `/oauth/v2/token` e o certificado mTLS acompanham essa escolha. Com a configuração em cache, rode `php artisan config:clear` depois de trocar o ambiente.
+- O token dura 60 minutos, é reutilizado pelo cache e não é impresso. Os escopos padrão são `boleto-cobranca.read` e `boleto-cobranca.write`.
+- Havendo mais de uma conta na aplicação, `INTER_CONTA_CORRENTE` vai no cabeçalho `x-conta-corrente` (só números, com o dígito, sem zeros à esquerda).
+- `CobrancaInterService` emite, consulta, lista, resume, edita, cancela e baixa o PDF. `pagarSandbox()` simula o pagamento e só funciona no sandbox.
+- `WebhookCobrancaInterService` cadastra a URL HTTPS que recebe cobrança paga, cancelada ou expirada.
+- `php artisan inter:verificar` autentica no ambiente configurado. Certificado e chave ficam fora do git, em `INTER_CERTIFICADO` e `INTER_CHAVE`.
 
-### Code Quality
-```bash
-# Run Laravel Pint (code formatter)
-./vendor/bin/pint
+### Autenticação do painel (guard `painel`)
 
-# Run Pint with specific paths
-./vendor/bin/pint app/Models
+- Guard `painel` → provider `usuarios` → `App\Models\Usuario` (tabela `usuarios`). O login é feito pelo campo `login`, não por e-mail. O guard padrão `web` também aponta para `Usuario`, mas a sessão dele é separada.
+- Login, logout e dashboard ficam em `Painel\AutenticacaoController`. Rotas protegidas entram no grupo `Route::prefix('painel')->middleware('auth:painel')` em `routes/web.php`.
+- Dentro desse grupo, o `auth:painel` torna `painel` o guard padrão, então `Auth::user()` funciona ali (o template do painel e o `ConfiguracaoController` dependem disso). Fora dele, use `Auth::guard('painel')` explicitamente.
+- Laravel 13: nunca registre middleware com `$this->middleware()` no construtor do controller. Use middleware na rota ou implemente `Illuminate\Routing\Controllers\HasMiddleware`.
 
-# Check formatting without fixing
-./vendor/bin/pint --test
-```
+### Permissões do painel
 
-## Architecture
+- `Usuario` ↔ `Grupo` (pivô `grupo_usuario`) ↔ `Acesso` (pivô `acesso_grupo`). Cada `Acesso.key` é uma permissão no formato `<modulo>_<visualizar|cadastrar|editar|deletar>`, por exemplo `usuario_visualizar`. `Usuario::acessos()` devolve as chaves do usuário e `hasPermissionTo()` verifica uma delas. Chaves novas vão no `PermissoesSeeder` (e no `AcessoSeeder`). Para liberá-las num banco existente, rode `php artisan db:seed` e faça logout/login (veja abaixo).
+- Os controllers do painel estendem `Painel\PainelController`, cujo construtor carrega `$this->usuario` e `$this->listaPermissoes` da chave de sessão `permissoes`.
+- Essa chave só é preenchida por `AutenticacaoController::principal()` (o dashboard em `/painel`) e fica na sessão até o logout. Por isso, mudanças nos grupos de um usuário só valem no próximo login dele.
+- Nos controllers, use `checkPermissionOrFail('<chave>')` ou `hasPermission()`. As views verificam `in_array('<chave>', $listaPermissoes)` e o layout do painel monta o menu lateral com essa lista, então toda view do painel precisa receber `usuario` e `listaPermissoes` do controller (veja `UsuarioController`).
 
-This application follows a layered architecture pattern to separate concerns:
+### Front-end: dois pipelines separados
 
-### Service Layer (`app/Services/`)
-Business logic and orchestration layer. Services coordinate between repositories, handle complex operations, and contain the core application logic.
+- **Site público** (`resources/views/site/`, layout `site.layout`): Vite + Tailwind 4 via `@vite(['resources/css/app.css', 'resources/js/app.js'])`. Precisa de `npm run dev` ou `npm run build`.
+- **Painel** (`resources/views/template/painel.blade.php` e `resources/views/painel/`): Tailwind via CDN mais os arquivos estáticos escritos à mão `public/assets/css/app.css`, `public/assets/css/painel.css` e `public/assets/js/app.js`, carregados com `url()`. O Vite não processa esses arquivos; edite-os diretamente. As páginas do painel fazem `@extends('template.painel')` e preenchem `@section('conteudo')`.
+- O tema claro/escuro de cada usuário fica em `configuracao_usuario` (`ConfiguracaoUsuario`, criado sob demanda por `Usuario::getConfiguracao()`). A troca é feita via AJAX (`POST /painel/configuracao/toggle-tema`) e aplicada por `body[data-tema]` e pelas regras `.tema-escuro` do `painel.css`. Detalhes em `SISTEMA-TEMAS.md`.
 
-### Repository Layer (`app/Repositories/`)
-Data access abstraction layer following the Repository pattern:
-- **Contracts** (`app/Repositories/Contracts/`) - Repository interfaces defining contracts
-- **Eloquent** (`app/Repositories/Eloquent/`) - Concrete Eloquent implementations of repositories
-- `PaginationPresenter` - Wraps Laravel's `LengthAwarePaginator` to provide a framework-agnostic pagination interface
+### Datas e horas
 
-**Repository Pattern Flow:**
-1. Define interface in `app/Repositories/Contracts/`
-2. Implement with Eloquent in `app/Repositories/Eloquent/`
-3. Bind interface to implementation in a Service Provider
-4. Inject interface into Services or Controllers
+Convenção: persistir em UTC e converter para o horário de Brasília só na interface.
 
-### Directory Structure
-- `app/Http/Controllers/` - HTTP controllers (thin layer, delegates to Services)
-- `app/Services/` - Business logic and service layer
-- `app/Repositories/Contracts/` - Repository interfaces
-- `app/Repositories/Eloquent/` - Eloquent repository implementations
-- `app/Models/` - Eloquent models (data models only, minimal logic)
-- `app/Providers/` - Service providers
-- `config/` - Configuration files
-- `database/migrations/` - Database migrations
-- `routes/` - Route definitions (web.php, console.php)
-- `resources/views/` - Blade templates
-- `tests/Feature/` - Feature tests
-- `tests/Unit/` - Unit tests
+- `config/app.php` mantém `timezone` em `UTC`; não mude isso. As conexões `mysql` e `mariadb` fixam `'timezone' => '+00:00'`, para que as colunas `TIMESTAMP` e o `NOW()` do banco também fiquem em UTC.
+- O fuso de exibição é `config('app.display_timezone')` (`APP_DISPLAY_TIMEZONE`, padrão `America/Sao_Paulo`) e o locale é `pt_BR`. As mensagens padrão do framework (validação, auth, paginação e senhas) estão traduzidas em `lang/pt_BR/`, e o `lang/pt_BR.json` traduz as frases soltas, como o resumo de erros das respostas JSON e as páginas de erro. Nas mensagens de validação, o nome de cada campo vem de `attributes` em `lang/pt_BR/validation.php`; cadastre ali os campos de formulários novos. O `APP_FALLBACK_LOCALE` continua `en`, com os originais publicados em `lang/en/`: assim, uma chave que faltar em `lang/pt_BR/` (por exemplo, a de uma regra nova do framework) aparece em inglês, e não como a chave crua (`validation.required`).
+- Toda conversão passa pelo `App\Services\DataHoraService`:
+  - `agora()`: o momento atual em Brasília. Use para saber a data de "hoje".
+  - `paraExibicao()` e `formatarDataHora()` (`d/m/Y H:i`): convertem um instante UTC para Brasília.
+  - `paraUtc()`: converte a data/hora digitada num formulário (horário de Brasília) para UTC antes de gravar.
+  - `formatarData()` (`d/m/Y`): formata sem converter o fuso.
+- Nas views, use `@inject('dataHora', 'App\Services\DataHoraService')`. Não use `date()` nem `now()` sem fuso: eles devolvem o horário UTC, e das 21h à meia-noite de Brasília a data já é a do dia seguinte.
+- Datas de calendário, como o vencimento de um boleto, devem ser colunas `date` e não passam por conversão de fuso (use `formatarData()`). Só instantes, como `created_at` ou a data/hora de um pagamento, são convertidos.
 
-### Architectural Guidelines
-- **Controllers** should be thin - validate input and delegate to Services
-- **Services** contain business logic and orchestrate repositories
-- **Repositories** handle data persistence and retrieval only
-- **Models** are data structures with relationships and accessors/mutators
-- Always program to interfaces (Contracts) not implementations
+### Testes
 
-### Testing
-- PHPUnit 11.x for testing
-- Uses SQLite in-memory database for tests (configured in phpunit.xml)
-- Test environment variables defined in phpunit.xml
-- Feature tests for HTTP endpoints and integration testing
-- Unit tests for Services and Repositories
+- Os testes sempre rodam em SQLite em memória e com locale `pt_BR` (fixados no `phpunit.xml`), seja qual for o banco ou o `APP_LOCALE` configurado no `.env` local.
+- Entre os models de domínio, só o `Cliente` tem factory (`ClienteFactory`, com os estados `mensal()`, `anual()` e `avulso()`). A `UserFactory` aponta para um model `User` que não existe. Os testes de feature populam o banco com o `PermissoesSeeder` e autenticam com `actingAs($usuario, 'painel')->withSession(['permissoes' => $usuario->acessos()])`.
+- Faça uma requisição por teste (use data providers para variações). O `PainelController` recebe a `Request` e as permissões no construtor, e o Laravel reaproveita a instância do controller entre requisições do mesmo teste, então uma segunda chamada enxerga a query string e as permissões da primeira.
+- Os testes verificam textos renderizados em português (por exemplo, "Cobranças mensais em um só lugar"), então mudar textos da interface pode quebrá-los.
+- Para testar datas, use `$this->travelTo()` com um horário UTC entre 00h e 03h, quando o dia em Brasília ainda é o anterior (veja `ConvencaoDataHoraTest`). Escolha datas longe da data real, para o teste não passar por coincidência.
 
-## Laravel 12 Specific Notes
+### Arquivos relacionados
 
-### Middleware in Controllers
-**IMPORTANT:** In Laravel 12, middleware should NOT be defined in the constructor using `$this->middleware()`. This will cause errors.
-
-**Preferred Approach - Route Middleware:**
-```php
-// In routes/web.php
-Route::prefix('painel')->middleware('auth:painel')->group(function () {
-    // Protected routes
-});
-```
-
-**Alternative - HasMiddleware Interface:**
-```php
-use Illuminate\Routing\Controllers\HasMiddleware;
-use Illuminate\Routing\Controllers\Middleware;
-
-class MyController extends Controller implements HasMiddleware
-{
-    public static function middleware(): array
-    {
-        return [
-            new Middleware('auth:painel', only: ['index']),
-        ];
-    }
-}
-```
-
-**❌ AVOID - Old Laravel Pattern (Will cause errors in Laravel 12):**
-```php
-public function __construct() {
-    $this->middleware('auth'); // DON'T DO THIS
-}
-```
-
-### Constructor Dependency Injection
-Use property promotion for cleaner constructor dependency injection:
-```php
-public function __construct(
-    protected Request $request,
-    protected MyService $service
-) {
-    // Constructor logic here
-}
-```
-
-### Authentication System
-This project uses a custom guard called `painel` for admin panel authentication:
-- Model: `App\Models\Usuario`
-- Guard: `painel` (configured in config/auth.php)
-- Login: `Auth::guard('painel')->attempt()`
-- Check: `Auth::guard('painel')->user()`
-- Middleware: `auth:painel`
+- `CLAUDE.md` e `.agent/skills/SKILL.md` têm a mesma seção de projeto (tudo antes do bloco do Laravel Boost). Mantenha os dois sincronizados.
+- O bloco `<laravel-boost-guidelines>` abaixo é gerado pelo Laravel Boost e fica em inglês. O `php artisan boost:update` pode sobrescrever edições manuais nele.
 
 ===
 
@@ -169,13 +122,13 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 ## Foundational Context
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.2.29
-- laravel/framework (LARAVEL) - v12
+- php - 8.4.22
+- laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
-- laravel/mcp (MCP) - v0
+- laravel/mcp (MCP) - v1
 - laravel/pint (PINT) - v1
 - laravel/sail (SAIL) - v1
-- phpunit/phpunit (PHPUNIT) - v11
+- phpunit/phpunit (PHPUNIT) - v12
 
 
 ## Conventions
@@ -317,12 +270,12 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 === laravel/v12 rules ===
 
-## Laravel 12
+## Laravel 13
 
 - Use the `search-docs` tool to get version specific documentation.
 - Since Laravel 11, Laravel has a new streamlined file structure which this project uses.
 
-### Laravel 12 Structure
+### Laravel 13 Structure
 - No middleware files in `app/Http/Middleware/`.
 - `bootstrap/app.php` is the file to register middleware, exceptions, and routing files.
 - `bootstrap/providers.php` contains application specific service providers.

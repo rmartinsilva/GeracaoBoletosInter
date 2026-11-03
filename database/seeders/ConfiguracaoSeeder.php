@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Models\Usuario;
 use App\Models\ConfiguracaoUsuario;
+use App\Models\Usuario;
+use Illuminate\Database\Seeder;
 
 class ConfiguracaoSeeder extends Seeder
 {
@@ -21,10 +20,10 @@ class ConfiguracaoSeeder extends Seeder
             ConfiguracaoUsuario::create([
                 'usuario_id' => $usuario->id,
                 'tema' => 'claro', // Define tema claro como padrão
-                'preferencias' => []
+                'preferencias' => [],
             ]);
         }
 
-        $this->command->info('Configurações iniciais criadas para ' . $usuarios->count() . ' usuários');
+        $this->command->info('Configurações iniciais criadas para '.$usuarios->count().' usuários');
     }
 }

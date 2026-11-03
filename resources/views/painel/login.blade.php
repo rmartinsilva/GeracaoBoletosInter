@@ -1,3 +1,4 @@
+@inject('dataHora', 'App\Services\DataHoraService')
 <!DOCTYPE html>
 <html lang="pt-br">
 
@@ -22,9 +23,12 @@
         <div class="painel-login-card animate-fadeIn">
             <!-- Logo -->
             <div class="text-center mb-8">
-                <img src="{{ url('/assets/imagens/logo-cliente-painel.png') }}" alt="De Lollo Agronegócios"
-                    class="painel-logo-cliente mb-4" onerror="this.style.display='none'">
-                <h1 class="painel-title">Painel – TechPro Core</h1>
+                <div class="usinaweb-container mb-4">
+                    <div class="usinaweb-logo-wrapper">
+                        <img src="{{ asset('assets/imagens/usinaWeb.png') }}" alt="UsinaWeb" class="usinaweb-logo">
+                    </div>
+                </div>
+                <h1 class="painel-title">Geração de Cobranças</h1>
             </div>
 
             <!-- Alertas de Erro -->
@@ -103,27 +107,26 @@
                     </label>
                 </div>
 
-                <!-- Botão Entrar -->
-                <button type="submit" class="painel-btn-primary painel-hover-lift">
-                    <span class="flex items-center justify-center">
-                        <svg class="painel-btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                <div class="login-actions">
+                    <a href="{{ route('site.index') }}" class="login-btn login-btn-back">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
+                        Voltar
+                    </a>
+                    <button type="submit" class="login-btn login-btn-enter">
                         Entrar
-                    </span>
-                </button>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </div>
             </form>
 
             <!-- Footer -->
             <div class="painel-footer">
                 <div class="painel-footer-text">
-                    © 2008 - {{ date('Y') }} <a href="https://www.usinaweb.com.br" target="_blank">USINAWEB - TECH PRO</a> - Todos os direitos reservados
-                </div>
-                <div class="usinaweb-container">
-                    <div class="usinaweb-logo-wrapper">
-                        <img src="{{ asset('assets/imagens/usinaWeb.png') }}" alt="UsinaWeb" class="usinaweb-logo">
-                    </div>
+                    © 2008 - {{ $dataHora->agora()->year }} <a href="https://www.usinaweb.com.br" target="_blank">USINAWEB - TECH PRO</a> - Todos os direitos reservados
                 </div>
             </div>
         </div>
