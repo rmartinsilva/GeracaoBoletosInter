@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\DTO\Inter\PagadorCobrancaDTO;
 use App\Enums\Inter\TipoPessoa as TipoPessoaInter;
+use App\Enums\SituacaoCliente;
 use App\Enums\TipoPessoa;
 use App\Exceptions\RegraNegocioException;
 use Database\Factories\ClienteFactory;
@@ -32,6 +33,7 @@ class Cliente extends Model
         'nome',
         'email',
         'nome_contato',
+        'situacao',
         'tipo_pessoa',
         'cpf_cnpj',
         'cep',
@@ -50,6 +52,7 @@ class Cliente extends Model
     {
         return [
             'tipo_pessoa' => TipoPessoa::class,
+            'situacao' => SituacaoCliente::class,
         ];
     }
 

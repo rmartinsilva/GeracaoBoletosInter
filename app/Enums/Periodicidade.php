@@ -6,7 +6,6 @@ enum Periodicidade: string
 {
     case Mensal = 'mensal';
     case Anual = 'anual';
-    case Avulso = 'avulso';
 
     /**
      * Rótulo exibido na interface.
@@ -16,7 +15,6 @@ enum Periodicidade: string
         return match ($this) {
             self::Mensal => 'Mensal',
             self::Anual => 'Anual',
-            self::Avulso => 'Avulso',
         };
     }
 }

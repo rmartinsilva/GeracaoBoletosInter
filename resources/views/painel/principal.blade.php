@@ -20,6 +20,33 @@
         </div>
     </div>
 
+    @if (session('success'))
+        <div class="alert-success mb-6">
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+
+    @if ($errors->any())
+        <div class="alert-error mb-6">
+            <span>{{ $errors->first() }}</span>
+        </div>
+    @endif
+
+    @if (in_array('cliente_editar', $listaPermissoes))
+        <div class="painel-card p-6 mb-6">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h3 class="text-lg font-bold painel-text-primary">Cobranças do dia</h3>
+                    <p class="painel-text-secondary mt-1">A rotina automática roda todo dia às 08:00. Gere agora se o banco ficou indisponível ou se alguma cobrança ficou sem boleto.</p>
+                </div>
+                <form method="POST" action="{{ route('cobrancas.gerar') }}" onsubmit="if (!confirm('Gerar as cobranças agora? Isso emite os boletos do dia e retoma os que ficaram sem e-mail.')) { return false; } this.querySelector('button').disabled = true;">
+                    @csrf
+                    <button type="submit" class="btn-primary inline-flex items-center justify-center whitespace-nowrap">Gerar cobranças agora</button>
+                </form>
+            </div>
+        </div>
+    @endif
+
     <!-- Grid de Cards de Acesso Rápido -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @if (in_array('cliente_visualizar', $listaPermissoes))

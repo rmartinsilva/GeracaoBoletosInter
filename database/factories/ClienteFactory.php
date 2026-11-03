@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\SituacaoCliente;
 use App\Enums\TipoPessoa;
 use App\Models\Cliente;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -22,7 +23,18 @@ class ClienteFactory extends Factory
             'nome' => fake()->company(),
             'email' => fake()->unique()->companyEmail(),
             'nome_contato' => fake()->name(),
+            'situacao' => SituacaoCliente::Ativo,
         ];
+    }
+
+    /**
+     * Cliente que não continua e não deve mais ser cobrado.
+     */
+    public function inativo(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'situacao' => SituacaoCliente::Inativo,
+        ]);
     }
 
     /**

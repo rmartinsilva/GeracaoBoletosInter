@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Mail\CobrancaEmitida;
+use App\Mail\FalhaCobranca;
 use App\Models\Assinatura;
 use App\Models\Cliente;
+use App\Models\ConfiguracaoCobranca;
 use App\Models\Lancamento;
 use App\Services\Inter\ConfiguracaoInter;
 use Illuminate\Console\Scheduling\Schedule;
@@ -155,6 +157,36 @@ class GerarCobrancasTest extends TestCase
         $this->assertStringContainsString('CPF ou CNPJ', (string) $lancamento->erro_emissao);
         Mail::assertNothingSent();
         $this->assertSame(0, $this->postsDeEmissao());
+    }
+
+    public function test_falha_avisa_o_email_configurado_uma_unica_vez(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        ConfiguracaoCobranca::atual()->update(['email_falha' => 'operador@exemplo.com']);
+        $cliente = Cliente::factory()->create(['nome' => 'Padaria Sol']);
+        Assinatura::factory()->create([
+            'cliente_id' => $cliente->id,
+            'descricao' => 'Servidor Mensal',
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+            'valor' => 700,
+        ]);
+
+        $this->artisan('cobrancas:gerar')->assertOk();
+
+        $lancamento = Lancamento::query()->sole();
+        $this->assertNotNull($lancamento->falha_notificada_em);
+        Mail::assertSent(FalhaCobranca::class, function (FalhaCobranca $mail): bool {
+            return $mail->hasTo('operador@exemplo.com')
+                && $mail->assunto === 'Falha na cobrança: Servidor Mensal'
+                && str_contains($mail->texto, 'Padaria Sol')
+                && str_contains($mail->texto, 'R$ 700,00')
+                && str_contains($mail->texto, 'CPF ou CNPJ');
+        });
+
+        $this->artisan('cobrancas:gerar')->assertOk();
+        Mail::assertSentCount(1);
     }
 
     public function test_cobranca_ja_emitida_recebe_o_email_quando_o_boleto_fica_pronto(): void

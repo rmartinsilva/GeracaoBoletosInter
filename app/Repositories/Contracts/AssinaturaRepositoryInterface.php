@@ -18,6 +18,13 @@ interface AssinaturaRepositoryInterface
     public function listarPorCliente(int $clienteId): Collection;
 
     /**
+     * Assinaturas ainda em cobrança deste cliente.
+     *
+     * @return Collection<int, Assinatura>
+     */
+    public function listarAtivasDoCliente(int $clienteId): Collection;
+
+    /**
      * Quantas assinaturas o cliente tem, em qualquer situação.
      */
     public function contarPorCliente(int $clienteId): int;
@@ -51,6 +58,11 @@ interface AssinaturaRepositoryInterface
      * Deleta uma assinatura. Retorna false se ela não existir.
      */
     public function deletar(int $id): bool;
+
+    /**
+     * Encerra a assinatura na data informada, sem alterar o valor nem os lançamentos.
+     */
+    public function encerrar(int $id, string $dataFim): void;
 
     /**
      * Assinaturas ativas, com o cliente, para a geração diária das cobranças.

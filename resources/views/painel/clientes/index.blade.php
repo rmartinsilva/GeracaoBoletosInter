@@ -56,6 +56,13 @@
                        placeholder="Buscar por cliente, e-mail ou contato..."
                        class="painel-input painel-focus-ring">
             </div>
+            <div class="sm:w-44">
+                <select name="situacao" class="painel-input painel-focus-ring">
+                    <option value="" @selected(($situacao ?? '') === '')>Todos</option>
+                    <option value="ativo" @selected(($situacao ?? '') === 'ativo')>Ativos</option>
+                    <option value="inativo" @selected(($situacao ?? '') === 'inativo')>Inativos</option>
+                </select>
+            </div>
             <div class="flex gap-2">
                 <button type="submit" class="painel-btn-primary">
                     <svg class="painel-btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,7 +70,7 @@
                     </svg>
                     Buscar
                 </button>
-                @if($search)
+                @if($search || ($situacao ?? ''))
                     <a href="{{ route('clientes.index') }}" class="painel-btn-secondary">
                         <svg class="painel-btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -83,6 +90,7 @@
                     <tr>
                         <th class="painel-table-th">Cliente</th>
                         <th class="painel-table-th">Contato</th>
+                        <th class="painel-table-th">Situação</th>
                         <th class="painel-table-th">Assinaturas</th>
                         <th class="painel-table-th text-center">Ações</th>
                     </tr>
@@ -96,6 +104,10 @@
                                 $ativas === 1 => '1 ativa',
                                 default => $ativas.' ativas',
                             };
+                            $situacaoCliente = $clienteItem->situacao instanceof \App\Enums\SituacaoCliente
+                                ? $clienteItem->situacao
+                                : \App\Enums\SituacaoCliente::tryFrom((string) $clienteItem->situacao);
+                            $classeSituacao = $situacaoCliente === \App\Enums\SituacaoCliente::Ativo ? 'badge-success' : 'badge-warning';
                         @endphp
                         <tr class="painel-table-row">
                             <td class="painel-table-td">
@@ -104,6 +116,9 @@
                             </td>
                             <td class="painel-table-td whitespace-nowrap">
                                 <div class="text-sm painel-text-primary">{{ $clienteItem->nome_contato }}</div>
+                            </td>
+                            <td class="painel-table-td whitespace-nowrap">
+                                <span class="badge {{ $classeSituacao }}">{{ $situacaoCliente?->rotulo() ?? 'Ativo' }}</span>
                             </td>
                             <td class="painel-table-td whitespace-nowrap">
                                 <a href="{{ route('clientes.show', $clienteItem->id) }}" class="text-sm font-medium painel-text-primary hover:underline">{{ $rotuloAssinaturas }}</a>
@@ -125,6 +140,17 @@
                                             </svg>
                                             Editar
                                         </a>
+                                        @if ($situacaoCliente === \App\Enums\SituacaoCliente::Ativo)
+                                            <form action="{{ route('clientes.inativar', $clienteItem->id) }}" method="POST" onsubmit="return confirm('Inativar este cliente encerra as assinaturas ativas e cancela os lançamentos com vencimento posterior. O histórico permanece. Continuar?');" class="inline">
+                                                @csrf
+                                                <button type="submit" class="painel-btn-action-delete">Inativar</button>
+                                            </form>
+                                        @else
+                                            <form action="{{ route('clientes.reativar', $clienteItem->id) }}" method="POST" onsubmit="return confirm('Reativar o cliente não reabre as assinaturas encerradas. Continuar?');" class="inline">
+                                                @csrf
+                                                <button type="submit" class="painel-btn-action-edit">Reativar</button>
+                                            </form>
+                                        @endif
                                     @endif
                                     @if (in_array('cliente_deletar', $listaPermissoes))
                                         <form action="{{ route('clientes.destroy', $clienteItem->id) }}"
@@ -147,7 +173,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="painel-table-td text-center painel-text-secondary">
+                            <td colspan="5" class="painel-table-td text-center painel-text-secondary">
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
                                 </svg>

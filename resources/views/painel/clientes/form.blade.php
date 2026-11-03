@@ -15,9 +15,23 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 @if ($clienteEdit)
+                    @php
+                        $situacaoCliente = \App\Enums\SituacaoCliente::tryFrom((string) ($clienteEdit->situacao ?? 'ativo')) ?? \App\Enums\SituacaoCliente::Ativo;
+                    @endphp
                     <a href="{{ route('clientes.show', $clienteEdit->id) }}" class="btn-primary inline-flex items-center">
                         Assinaturas
                     </a>
+                    @if ($situacaoCliente === \App\Enums\SituacaoCliente::Ativo)
+                        <form action="{{ route('clientes.inativar', $clienteEdit->id) }}" method="POST" class="inline-flex" onsubmit="return confirm('Inativar este cliente encerra as assinaturas ativas e cancela os lançamentos com vencimento posterior. O histórico permanece. Continuar?');">
+                            @csrf
+                            <button type="submit" class="btn-danger inline-flex items-center">Inativar</button>
+                        </form>
+                    @else
+                        <form action="{{ route('clientes.reativar', $clienteEdit->id) }}" method="POST" class="inline-flex" onsubmit="return confirm('Reativar o cliente não reabre as assinaturas encerradas. Continuar?');">
+                            @csrf
+                            <button type="submit" class="btn-success inline-flex items-center">Reativar</button>
+                        </form>
+                    @endif
                 @endif
                 <a href="{{ route('clientes.index') }}" class="btn-secondary inline-flex items-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,6 +109,10 @@
                            placeholder="financeiro@cliente.com.br"
                            required
                            maxlength="255"
+                           autocomplete="email"
+                           inputmode="email"
+                           pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
+                           title="Informe um e-mail válido, como financeiro@cliente.com.br"
                            class="painel-input painel-focus-ring pl-10">
                 </div>
                 <p class="mt-1 text-sm painel-text-secondary">Endereço que vai receber os boletos</p>
@@ -141,14 +159,47 @@
             </div>
 
             <div>
+                @php
+                    $documento = preg_replace('/\D/', '', (string) old('cpf_cnpj', $clienteEdit->cpf_cnpj ?? '')) ?? '';
+                    if (strlen($documento) === 11) {
+                        $documento = substr($documento, 0, 3).'.'.substr($documento, 3, 3).'.'.substr($documento, 6, 3).'-'.substr($documento, 9, 2);
+                    } elseif (strlen($documento) === 14) {
+                        $documento = substr($documento, 0, 2).'.'.substr($documento, 2, 3).'.'.substr($documento, 5, 3).'/'.substr($documento, 8, 4).'-'.substr($documento, 12, 2);
+                    }
+                @endphp
                 <label for="cpf_cnpj" class="painel-label">CPF ou CNPJ</label>
                 <input type="text"
                        id="cpf_cnpj"
                        name="cpf_cnpj"
-                       value="{{ old('cpf_cnpj', $clienteEdit->cpf_cnpj ?? '') }}"
-                       placeholder="Somente números"
+                       value="{{ $documento }}"
+                       placeholder="000.000.000-00"
+                       inputmode="numeric"
                        maxlength="18"
+                       data-mascara="cpf-cnpj"
                        class="painel-input painel-focus-ring">
+            </div>
+
+            <div>
+                @php
+                    $cepExibido = (string) old('cep', $clienteEdit->cep ?? '');
+                    $cepDigitos = preg_replace('/\D/', '', $cepExibido) ?? '';
+                    if (strlen($cepDigitos) === 8) {
+                        $cepExibido = substr($cepDigitos, 0, 5).'-'.substr($cepDigitos, 5);
+                    }
+                @endphp
+                <label for="cep" class="painel-label">CEP</label>
+                <input type="text"
+                       id="cep"
+                       name="cep"
+                       inputmode="numeric"
+                       autocomplete="postal-code"
+                       value="{{ $cepExibido }}"
+                       placeholder="00000-000"
+                       maxlength="9"
+                       data-mascara="cep"
+                       data-consulta="{{ route('cep.consultar', ['cep' => '00000000']) }}"
+                       class="painel-input painel-focus-ring">
+                <p id="cep-aviso" class="mt-1 text-sm painel-text-secondary" aria-live="polite">Informe o CEP para preencher o endereço.</p>
             </div>
 
             <div class="md:col-span-2">
@@ -167,7 +218,9 @@
                        id="numero"
                        name="numero"
                        value="{{ old('numero', $clienteEdit->numero ?? '') }}"
-                       maxlength="20"
+                       placeholder="123 ou S/N"
+                       maxlength="12"
+                       data-mascara="numero"
                        class="painel-input painel-focus-ring">
             </div>
 
@@ -208,16 +261,7 @@
                        name="uf"
                        value="{{ old('uf', $clienteEdit->uf ?? '') }}"
                        maxlength="2"
-                       class="painel-input painel-focus-ring">
-            </div>
-
-            <div>
-                <label for="cep" class="painel-label">CEP</label>
-                <input type="text"
-                       id="cep"
-                       name="cep"
-                       value="{{ old('cep', $clienteEdit->cep ?? '') }}"
-                       maxlength="9"
+                       data-mascara="uf"
                        class="painel-input painel-focus-ring">
             </div>
         </div>
@@ -236,3 +280,81 @@
         </div>
     </form>
 @endsection
+
+@push('scripts-rodape')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const cep = document.getElementById('cep');
+            const aviso = document.getElementById('cep-aviso');
+
+            if (!cep || !aviso || !cep.dataset.consulta) {
+                return;
+            }
+
+            let ultimo = '';
+
+            function preencher(id, valor) {
+                const campo = document.getElementById(id);
+
+                if (campo && valor !== '') {
+                    campo.value = valor;
+                }
+            }
+
+            async function consultar(digitos) {
+                if (digitos === ultimo) {
+                    return;
+                }
+
+                ultimo = digitos;
+                aviso.textContent = 'Buscando endereço...';
+
+                try {
+                    const resposta = await fetch(cep.dataset.consulta.replace('00000000', digitos), {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const dados = await resposta.json();
+
+                    if (!resposta.ok) {
+                        aviso.textContent = dados.message || 'CEP não encontrado.';
+                        return;
+                    }
+
+                    preencher('endereco', dados.endereco || '');
+                    preencher('bairro', dados.bairro || '');
+                    preencher('cidade', dados.cidade || '');
+                    preencher('uf', dados.uf || '');
+                    aviso.textContent = dados.endereco
+                        ? 'Endereço preenchido. Informe o número.'
+                        : 'CEP encontrado. Complete o endereço.';
+                    document.getElementById('numero')?.focus();
+                } catch (erro) {
+                    ultimo = '';
+                    aviso.textContent = 'Não foi possível consultar o CEP.';
+                }
+            }
+
+            function digitosDoCampo() {
+                const digitos = cep.value.replace(/\D/g, '').slice(0, 8);
+                cep.value = digitos.length > 5 ? digitos.slice(0, 5) + '-' + digitos.slice(5) : digitos;
+
+                return digitos;
+            }
+
+            cep.addEventListener('input', function () {
+                const digitos = digitosDoCampo();
+
+                if (digitos.length < 8) {
+                    ultimo = '';
+                    aviso.textContent = 'Informe o CEP para preencher o endereço.';
+                    return;
+                }
+
+                consultar(digitos);
+            });
+        });
+    </script>
+@endpush

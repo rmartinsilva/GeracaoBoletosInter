@@ -58,18 +58,6 @@ class AssinaturaFactory extends Factory
     }
 
     /**
-     * Assinatura com uma única cobrança.
-     */
-    public function avulso(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'periodicidade' => Periodicidade::Avulso,
-            'dia_vencimento' => null,
-            'dia_geracao' => null,
-        ]);
-    }
-
-    /**
      * Assinatura encerrada, com o histórico preservado.
      */
     public function encerrada(): static

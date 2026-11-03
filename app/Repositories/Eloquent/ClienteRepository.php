@@ -5,6 +5,7 @@ namespace App\Repositories\Eloquent;
 use App\DTO\Clientes\CreateClienteDTO;
 use App\DTO\Clientes\UpdateClienteDTO;
 use App\Enums\SituacaoAssinatura;
+use App\Enums\SituacaoCliente;
 use App\Models\Cliente;
 use App\Repositories\Contracts\ClienteRepositoryInterface;
 use App\Repositories\PaginationPresenter;
@@ -16,7 +17,7 @@ class ClienteRepository implements ClienteRepositoryInterface
         protected Cliente $model
     ) {}
 
-    public function paginar(int $pagina = 1, int $porPagina = 15, ?string $filtro = null): PaginationPresenter
+    public function paginar(int $pagina = 1, int $porPagina = 15, ?string $filtro = null, ?SituacaoCliente $situacao = null): PaginationPresenter
     {
         $paginator = $this->model
             ->when($filtro, function ($query) use ($filtro) {
@@ -25,6 +26,9 @@ class ClienteRepository implements ClienteRepositoryInterface
                         ->orWhere('email', 'like', "%{$filtro}%")
                         ->orWhere('nome_contato', 'like', "%{$filtro}%");
                 });
+            })
+            ->when($situacao, function ($query) use ($situacao) {
+                $query->where('situacao', $situacao);
             })
             ->withCount([
                 'assinaturas as assinaturas_ativas' => function ($query): void {
@@ -40,6 +44,22 @@ class ClienteRepository implements ClienteRepositoryInterface
     public function buscarPorId(int $id): ?stdClass
     {
         $cliente = $this->model->find($id);
+
+        if (! $cliente) {
+            return null;
+        }
+
+        return (object) $cliente->toArray();
+    }
+
+    public function buscarModelo(int $id): ?Cliente
+    {
+        return $this->model->newQuery()->find($id);
+    }
+
+    public function buscarPorCpfCnpj(string $cpfCnpj): ?stdClass
+    {
+        $cliente = $this->model->where('cpf_cnpj', $cpfCnpj)->first();
 
         if (! $cliente) {
             return null;
@@ -80,5 +100,16 @@ class ClienteRepository implements ClienteRepositoryInterface
         }
 
         return (bool) $cliente->delete();
+    }
+
+    public function definirSituacao(int $id, SituacaoCliente $situacao): void
+    {
+        $cliente = $this->model->newQuery()->find($id);
+
+        if (! $cliente) {
+            return;
+        }
+
+        $cliente->update(['situacao' => $situacao]);
     }
 }

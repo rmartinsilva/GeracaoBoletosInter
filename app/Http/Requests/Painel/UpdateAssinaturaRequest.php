@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Painel;
 
-use App\Enums\Periodicidade;
 use App\Enums\SituacaoAssinatura;
 use App\Models\Assinatura;
 use App\Support\ValorMonetario;
@@ -29,13 +28,12 @@ class UpdateAssinaturaRequest extends FormRequest
     {
         $assinatura = Assinatura::query()->find($this->route('assinatura'));
         $inicio = $assinatura?->data_inicio?->toDateString() ?? '1900-01-01';
-        $exigeDia = $assinatura === null || $assinatura->periodicidade !== Periodicidade::Avulso;
 
         return [
             'descricao' => 'required|string|max:255',
             'valor' => 'required|numeric|decimal:0,2|gt:0|max:99999999.99',
-            'dia_vencimento' => [$exigeDia ? 'required' : 'nullable', 'integer', 'between:1,31'],
-            'dia_geracao' => [$exigeDia ? 'required' : 'nullable', 'integer', 'between:1,31'],
+            'dia_vencimento' => ['required', 'integer', 'between:1,31'],
+            'dia_geracao' => ['required', 'integer', 'between:1,31'],
             'situacao' => ['required', Rule::enum(SituacaoAssinatura::class)],
             'data_fim' => ['nullable', 'date', 'required_if:situacao,encerrada', 'after_or_equal:'.$inicio],
         ];

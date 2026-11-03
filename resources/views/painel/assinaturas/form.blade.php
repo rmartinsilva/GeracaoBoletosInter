@@ -92,6 +92,7 @@
                            value="{{ $valorDigitado }}"
                            placeholder="0,00"
                            required
+                           data-mascara="dinheiro"
                            class="painel-input painel-focus-ring pl-10">
                 </div>
                 <p class="mt-1 text-sm painel-text-secondary">Valor de cada cobrança, por exemplo 1.500,00</p>
@@ -125,7 +126,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="mt-1 text-sm painel-text-secondary">Mensal e anual geram uma linha por período. Avulso gera uma só.</p>
+                    <p class="mt-1 text-sm painel-text-secondary">Mensal gera uma cobrança por mês. Anual gera uma por ano, no mês de início.</p>
                 </div>
                 <div>
                     <label for="data_inicio" class="painel-label">
@@ -142,10 +143,7 @@
 
             <div>
                 <label for="dia_vencimento" class="painel-label">
-                    Dia de vencimento
-                    @if (! $assinaturaEdit || $periodicidadeAtual !== \App\Enums\Periodicidade::Avulso)
-                        <span class="text-red-500">*</span>
-                    @endif
+                    Dia de vencimento <span class="text-red-500">*</span>
                 </label>
                 <input type="number"
                        id="dia_vencimento"
@@ -154,15 +152,12 @@
                        max="31"
                        value="{{ old('dia_vencimento', $assinaturaEdit->dia_vencimento ?? '') }}"
                        class="painel-input painel-focus-ring">
-                <p class="mt-1 text-sm painel-text-secondary">Dia do mês de cada cobrança. Em fevereiro, o dia 31 vira o último dia. No avulso, o vencimento é a data de início.</p>
+                <p class="mt-1 text-sm painel-text-secondary">Dia do mês de cada cobrança. Em fevereiro, o dia 31 vira o último dia.</p>
             </div>
 
             <div>
                 <label for="dia_geracao" class="painel-label">
-                    Dia de geração
-                    @if (! $assinaturaEdit || $periodicidadeAtual !== \App\Enums\Periodicidade::Avulso)
-                        <span class="text-red-500">*</span>
-                    @endif
+                    Dia de geração <span class="text-red-500">*</span>
                 </label>
                 <input type="number"
                        id="dia_geracao"
@@ -171,7 +166,7 @@
                        max="31"
                        value="{{ old('dia_geracao', $assinaturaEdit->dia_geracao ?? '') }}"
                        class="painel-input painel-focus-ring">
-                <p class="mt-1 text-sm painel-text-secondary">Dia em que o boleto é emitido e enviado por e-mail. Se for depois do vencimento, a emissão ocorre no mês anterior. No avulso, vazio gera na data de início.</p>
+                <p class="mt-1 text-sm painel-text-secondary">Dia em que o boleto é emitido e enviado por e-mail. Se for depois do vencimento, a emissão ocorre no mês anterior.</p>
             </div>
 
             @if ($assinaturaEdit)

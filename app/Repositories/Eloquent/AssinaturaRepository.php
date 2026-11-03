@@ -5,6 +5,7 @@ namespace App\Repositories\Eloquent;
 use App\DTO\Assinaturas\CreateAssinaturaDTO;
 use App\DTO\Assinaturas\UpdateAssinaturaDTO;
 use App\Enums\SituacaoAssinatura;
+use App\Enums\SituacaoCliente;
 use App\Models\Assinatura;
 use App\Repositories\Contracts\AssinaturaRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -23,6 +24,15 @@ class AssinaturaRepository implements AssinaturaRepositoryInterface
             ->withCount('lancamentos')
             ->orderBy('situacao')
             ->orderByDesc('data_inicio')
+            ->get();
+    }
+
+    public function listarAtivasDoCliente(int $clienteId): Collection
+    {
+        return $this->model->newQuery()
+            ->where('cliente_id', $clienteId)
+            ->where('situacao', SituacaoAssinatura::Ativa)
+            ->orderBy('id')
             ->get();
     }
 
@@ -98,10 +108,27 @@ class AssinaturaRepository implements AssinaturaRepositoryInterface
         return (bool) $assinatura->delete();
     }
 
+    public function encerrar(int $id, string $dataFim): void
+    {
+        $assinatura = $this->model->newQuery()->find($id);
+
+        if (! $assinatura) {
+            return;
+        }
+
+        $assinatura->update([
+            'situacao' => SituacaoAssinatura::Encerrada,
+            'data_fim' => $dataFim,
+        ]);
+    }
+
     public function listarAtivas(): Collection
     {
         return $this->model->newQuery()
             ->where('situacao', SituacaoAssinatura::Ativa)
+            ->whereHas('cliente', function ($query): void {
+                $query->where('situacao', SituacaoCliente::Ativo);
+            })
             ->with('cliente')
             ->orderBy('id')
             ->get();

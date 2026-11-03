@@ -27,6 +27,7 @@ TXT;
      */
     protected $fillable = [
         'corpo_email',
+        'email_falha',
     ];
 
     /**

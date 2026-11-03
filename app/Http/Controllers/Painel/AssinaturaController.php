@@ -6,6 +6,7 @@ use App\DTO\Assinaturas\CreateAssinaturaDTO;
 use App\DTO\Assinaturas\UpdateAssinaturaDTO;
 use App\Enums\Periodicidade;
 use App\Enums\SituacaoAssinatura;
+use App\Enums\SituacaoCliente;
 use App\Exceptions\RegraNegocioException;
 use App\Http\Requests\Painel\AtualizarLancamentoRequest;
 use App\Http\Requests\Painel\RegistrarPagamentoRequest;
@@ -41,6 +42,10 @@ class AssinaturaController extends PainelController
             return $this->clienteAusente();
         }
 
+        if ($this->clienteInativo($clienteEdit)) {
+            return $this->clienteInativoRedireciona($cliente);
+        }
+
         return view('painel.assinaturas.form', [
             'titulo' => 'Nova Assinatura',
             'usuario' => $this->usuario,
@@ -58,8 +63,14 @@ class AssinaturaController extends PainelController
     {
         $this->checkPermissionOrFail('cliente_cadastrar');
 
-        if (! $this->buscarCliente($cliente)) {
+        $clienteEdit = $this->buscarCliente($cliente);
+
+        if (! $clienteEdit) {
             return $this->clienteAusente();
+        }
+
+        if ($this->clienteInativo($clienteEdit)) {
+            return $this->clienteInativoRedireciona($cliente);
         }
 
         try {
@@ -361,6 +372,18 @@ class AssinaturaController extends PainelController
         return redirect()
             ->route('clientes.index')
             ->withErrors(['error' => 'Cliente não encontrado.']);
+    }
+
+    private function clienteInativo(stdClass $cliente): bool
+    {
+        return ($cliente->situacao ?? SituacaoCliente::Ativo->value) !== SituacaoCliente::Ativo->value;
+    }
+
+    private function clienteInativoRedireciona(int $clienteId): RedirectResponse
+    {
+        return redirect()
+            ->route('clientes.show', $clienteId)
+            ->withErrors(['error' => 'Cliente inativo não recebe assinatura nova. Reative o cliente antes.']);
     }
 
     private function assinaturaAusente(int $clienteId): RedirectResponse

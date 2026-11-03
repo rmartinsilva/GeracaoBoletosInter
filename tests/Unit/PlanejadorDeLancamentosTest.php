@@ -84,21 +84,6 @@ class PlanejadorDeLancamentosTest extends TestCase
         ], $planejado['periodos']);
     }
 
-    public function test_avulso_gera_a_data_de_inicio(): void
-    {
-        $planejado = $this->planejador->planejar(
-            Periodicidade::Avulso,
-            '2031-04-20',
-            null,
-            null,
-            '2031-06-15',
-        );
-
-        $this->assertSame([
-            ['competencia' => '2031-04-20', 'vencimento' => '2031-04-20'],
-        ], $planejado['periodos']);
-    }
-
     public function test_nao_gera_vencimento_depois_do_encerramento(): void
     {
         $planejado = $this->planejador->planejar(
@@ -145,14 +130,6 @@ class PlanejadorDeLancamentosTest extends TestCase
             'competencia' => '2031-07-01',
             'vencimento' => '2031-07-10',
         ], $proximo);
-    }
-
-    public function test_proximo_avulso_com_lancamento_existente_falha(): void
-    {
-        $this->expectException(RegraNegocioException::class);
-        $this->expectExceptionMessage('A cobrança avulsa tem um único lançamento.');
-
-        $this->planejador->proximo(Periodicidade::Avulso, '2031-04-20', '2031-04-20', null, null);
     }
 
     public function test_proximo_depois_do_encerramento_falha(): void
@@ -247,36 +224,6 @@ class PlanejadorDeLancamentosTest extends TestCase
             10,
             5,
             '2031-06-05',
-        ));
-    }
-
-    public function test_avulso_sem_dia_gera_na_data_de_inicio(): void
-    {
-        $this->assertSame([
-            'competencia' => '2031-04-20',
-            'vencimento' => '2031-04-20',
-        ], $this->planejador->periodoDoDia(
-            Periodicidade::Avulso,
-            '2031-04-20',
-            null,
-            null,
-            null,
-            '2031-04-20',
-        ));
-    }
-
-    public function test_avulso_com_dia_posterior_gera_no_mes_anterior(): void
-    {
-        $this->assertSame([
-            'competencia' => '2031-04-05',
-            'vencimento' => '2031-04-05',
-        ], $this->planejador->periodoDoDia(
-            Periodicidade::Avulso,
-            '2031-04-05',
-            null,
-            null,
-            20,
-            '2031-03-20',
         ));
     }
 }

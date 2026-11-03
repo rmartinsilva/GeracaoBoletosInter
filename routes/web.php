@@ -19,6 +19,7 @@ Route::middleware('web')->group(function () {
     /* Rotas Protegidas do Painel */
     Route::prefix('painel')->middleware('auth:painel')->group(function () {
         Route::get('/', [Painel\AutenticacaoController::class, 'principal'])->name('painel.dashboard');
+        Route::post('/cobrancas/gerar', [Painel\GeracaoDeCobrancasController::class, 'executar'])->name('cobrancas.gerar');
 
         // Configurações do usuário (AJAX)
         Route::controller(Painel\ConfiguracaoController::class)->group(function () {
@@ -44,6 +45,8 @@ Route::middleware('web')->group(function () {
             Route::post('/clientes', 'store')->name('clientes.store');
             Route::get('/clientes/{id}/editar', 'edit')->whereNumber('id')->name('clientes.edit');
             Route::put('/clientes/{id}', 'update')->whereNumber('id')->name('clientes.update');
+            Route::post('/clientes/{id}/inativar', 'inativar')->whereNumber('id')->name('clientes.inativar');
+            Route::post('/clientes/{id}/reativar', 'reativar')->whereNumber('id')->name('clientes.reativar');
             Route::delete('/clientes/{id}', 'destroy')->whereNumber('id')->name('clientes.destroy');
             Route::get('/clientes/{id}', 'show')->whereNumber('id')->name('clientes.show');
         });
@@ -51,6 +54,15 @@ Route::middleware('web')->group(function () {
         Route::controller(Painel\EmailCobrancaController::class)->group(function () {
             Route::get('/cobranca/email', 'edit')->name('cobranca.email.edit');
             Route::put('/cobranca/email', 'update')->name('cobranca.email.update');
+        });
+
+        Route::get('/cep/{cep}', [Painel\CepController::class, 'show'])
+            ->where('cep', '[0-9]{5}-?[0-9]{3}')
+            ->name('cep.consultar');
+
+        Route::controller(Painel\CobrancaAvulsaController::class)->group(function () {
+            Route::get('/clientes/{cliente}/cobrancas-avulsas/criar', 'create')->whereNumber('cliente')->name('cobrancas-avulsas.create');
+            Route::post('/clientes/{cliente}/cobrancas-avulsas', 'store')->whereNumber('cliente')->name('cobrancas-avulsas.store');
         });
 
         // Assinaturas e lançamentos do cliente

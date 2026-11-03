@@ -7,8 +7,7 @@
         $temPagos = $assinatura->lancamentos->contains(
             fn ($lancamento) => $lancamento->situacao === \App\Enums\SituacaoLancamento::Pago
         );
-        $podeGerar = $assinatura->situacao === \App\Enums\SituacaoAssinatura::Ativa
-            && ! ($assinatura->periodicidade === \App\Enums\Periodicidade::Avulso && $assinatura->lancamentos->isNotEmpty());
+        $podeGerar = $assinatura->situacao === \App\Enums\SituacaoAssinatura::Ativa;
         $hoje = $dataHora->agora()->toDateString();
     @endphp
 
@@ -44,13 +43,9 @@
             <div>
                 <dt class="text-sm painel-text-secondary">Vencimento</dt>
                 <dd class="painel-text-primary">
-                    @if ($assinatura->periodicidade === \App\Enums\Periodicidade::Avulso)
-                        {{ $dataHora->formatarData($assinatura->data_inicio) }}
-                    @else
-                        Dia {{ $assinatura->dia_vencimento }}
-                        @if ($assinatura->dia_geracao)
-                            <span class="block text-sm painel-text-secondary">Geração no dia {{ $assinatura->dia_geracao }}</span>
-                        @endif
+                    Dia {{ $assinatura->dia_vencimento }}
+                    @if ($assinatura->dia_geracao)
+                        <span class="block text-sm painel-text-secondary">Geração no dia {{ $assinatura->dia_geracao }}</span>
                     @endif
                 </dd>
             </div>
@@ -93,9 +88,9 @@
             @if ($podeGerar && in_array('cliente_editar', $listaPermissoes))
                 <form action="{{ route('lancamentos.store', [$assinatura->cliente_id, $assinatura->id]) }}" method="POST">
                     @csrf
-                    <button type="submit" class="painel-btn-primary">
-                        {{ $assinatura->periodicidade === \App\Enums\Periodicidade::Avulso ? 'Gerar lançamento' : 'Gerar próximo lançamento' }}
-                    </button>
+                        <button type="submit" class="painel-btn-primary">
+                            Gerar próximo lançamento
+                        </button>
                 </form>
             @endif
         </div>
@@ -127,9 +122,7 @@
                                 $lancamento->situacao === \App\Enums\SituacaoLancamento::Cancelado => 'badge-warning',
                                 default => 'badge-primary',
                             };
-                            $competencia = $assinatura->periodicidade === \App\Enums\Periodicidade::Avulso
-                                ? $dataHora->formatarData($lancamento->competencia)
-                                : $lancamento->competencia->format('m/Y');
+                            $competencia = $lancamento->competencia->format('m/Y');
                             $mostrarAntigo = (string) old('lancamento_id') === (string) $lancamento->id;
                         @endphp
                         <tr class="painel-table-row">
@@ -184,6 +177,7 @@
                                                        name="valor"
                                                        aria-label="Valor do lançamento"
                                                        inputmode="decimal"
+                                                       data-mascara="dinheiro"
                                                        value="{{ $mostrarAntigo && old('valor') !== null ? old('valor') : number_format((float) $lancamento->valor, 2, ',', '.') }}"
                                                        class="painel-input painel-focus-ring max-w-[8rem]">
                                                 <input type="date"

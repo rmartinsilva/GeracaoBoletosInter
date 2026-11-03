@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Assinatura;
 use App\Models\Cliente;
 use App\Models\Lancamento;
 
@@ -11,11 +10,11 @@ use App\Models\Lancamento;
  */
 class CorpoEmailCobranca
 {
-    public function montar(string $modelo, Cliente $cliente, Assinatura $assinatura, Lancamento $lancamento): string
+    public function montar(string $modelo, Cliente $cliente, string $descricao, Lancamento $lancamento): string
     {
         return strtr($modelo, [
             '{nome}' => $cliente->nome,
-            '{descricao}' => $assinatura->descricao,
+            '{descricao}' => $descricao,
             '{valor}' => 'R$ '.number_format((float) $lancamento->valor, 2, ',', '.'),
             '{vencimento}' => $lancamento->vencimento->format('d/m/Y'),
             '{linha_digitavel}' => (string) $lancamento->linha_digitavel,

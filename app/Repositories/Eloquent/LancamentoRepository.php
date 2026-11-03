@@ -43,6 +43,28 @@ class LancamentoRepository implements LancamentoRepositoryInterface
         ]);
     }
 
+    public function criarAvulsa(int $clienteId, string $descricao, string $valor, string $vencimento): Lancamento
+    {
+        return $this->model->newQuery()->create([
+            'cliente_id' => $clienteId,
+            'descricao' => $descricao,
+            'competencia' => $vencimento,
+            'valor' => $valor,
+            'vencimento' => $vencimento,
+            'situacao' => SituacaoLancamento::Aberto,
+        ]);
+    }
+
+    public function listarAvulsas(int $clienteId): Collection
+    {
+        return $this->model->newQuery()
+            ->where('cliente_id', $clienteId)
+            ->whereNull('assinatura_id')
+            ->orderByDesc('vencimento')
+            ->orderByDesc('id')
+            ->get();
+    }
+
     public function buscarDaAssinatura(int $assinaturaId, int $lancamentoId): ?Lancamento
     {
         return $this->model->newQuery()
@@ -106,6 +128,30 @@ class LancamentoRepository implements LancamentoRepositoryInterface
             ->where('situacao', SituacaoLancamento::Aberto)
             ->whereNotNull('codigo_solicitacao')
             ->whereNull('email_enviado_em')
+            ->with(['assinatura.cliente', 'cliente'])
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function avulsosEmAberto(): Collection
+    {
+        return $this->model->newQuery()
+            ->whereNull('assinatura_id')
+            ->where('situacao', SituacaoLancamento::Aberto)
+            ->whereNull('email_enviado_em')
+            ->with('cliente')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function assinaturasComFalhaDeEmissao(): Collection
+    {
+        return $this->model->newQuery()
+            ->whereNotNull('assinatura_id')
+            ->where('situacao', SituacaoLancamento::Aberto)
+            ->whereNull('codigo_solicitacao')
+            ->whereNull('email_enviado_em')
+            ->whereNotNull('erro_emissao')
             ->with('assinatura.cliente')
             ->orderBy('id')
             ->get();
@@ -116,6 +162,7 @@ class LancamentoRepository implements LancamentoRepositoryInterface
         $lancamento->update([
             'codigo_solicitacao' => $codigoSolicitacao,
             'erro_emissao' => null,
+            'falha_notificada_em' => null,
         ]);
     }
 
@@ -132,13 +179,25 @@ class LancamentoRepository implements LancamentoRepositoryInterface
             'nosso_numero' => $nossoNumero,
             'email_enviado_em' => $enviadoEm,
             'erro_emissao' => null,
+            'falha_notificada_em' => null,
         ]);
     }
 
     public function registrarFalha(Lancamento $lancamento, ?string $erro): void
     {
+        $dados = ['erro_emissao' => $erro];
+
+        if ($erro === null || $erro !== $lancamento->erro_emissao) {
+            $dados['falha_notificada_em'] = null;
+        }
+
+        $lancamento->update($dados);
+    }
+
+    public function registrarAvisoDeFalha(Lancamento $lancamento, CarbonInterface $quando): void
+    {
         $lancamento->update([
-            'erro_emissao' => $erro,
+            'falha_notificada_em' => $quando,
         ]);
     }
 }

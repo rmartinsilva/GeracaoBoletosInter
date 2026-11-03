@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Menu mobile toggle
     initMobileMenu();
+
+    aplicarMascaras();
 });
 
 /**
@@ -244,7 +246,123 @@ function maskPhone(input) {
  * Máscara de CEP
  */
 function maskCEP(input) {
-    let value = input.value.replace(/\D/g, '');
-    value = value.replace(/^(\d{5})(\d)/, '$1-$2');
-    input.value = value;
+    let value = input.value.replace(/\D/g, '').slice(0, 8);
+    input.value = value.length > 5 ? value.slice(0, 5) + '-' + value.slice(5) : value;
+}
+
+/**
+ * Aplica as máscaras marcadas com data-mascara nos formulários do painel.
+ */
+function aplicarMascaras() {
+    document.querySelectorAll('[data-mascara]').forEach(function (campo) {
+        const atualizar = function () {
+            aplicarMascara(campo);
+        };
+
+        atualizar();
+        campo.addEventListener('input', atualizar);
+    });
+
+    const tipo = document.getElementById('tipo_pessoa');
+    const documento = document.getElementById('cpf_cnpj');
+
+    if (tipo && documento) {
+        tipo.addEventListener('change', function () {
+            aplicarMascara(documento);
+        });
+    }
+}
+
+function aplicarMascara(campo) {
+    switch (campo.dataset.mascara) {
+        case 'dinheiro':
+            maskDinheiro(campo);
+            break;
+        case 'cpf-cnpj':
+            maskCpfCnpj(campo);
+            break;
+        case 'cep':
+            maskCEP(campo);
+            break;
+        case 'numero':
+            maskNumero(campo);
+            break;
+        case 'uf':
+            campo.value = campo.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+            break;
+    }
+}
+
+function maskDinheiro(input) {
+    const digitos = input.value.replace(/\D/g, '').replace(/^0+/, '');
+
+    if (digitos === '') {
+        input.value = '';
+        return;
+    }
+
+    const preenchido = digitos.padStart(3, '0');
+    const centavos = preenchido.slice(-2);
+    const inteiro = preenchido.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    input.value = inteiro + ',' + centavos;
+}
+
+function maskCpfCnpj(input) {
+    const tipo = document.getElementById('tipo_pessoa')?.value || '';
+    const limite = tipo === 'fisica' ? 11 : 14;
+    const digitos = input.value.replace(/\D/g, '').slice(0, limite);
+
+    input.value = digitos.length > 11 ? formatarCnpj(digitos) : formatarCpf(digitos);
+    input.placeholder = tipo === 'juridica' ? '00.000.000/0000-00' : '000.000.000-00';
+}
+
+function formatarCpf(digitos) {
+    if (digitos.length <= 3) {
+        return digitos;
+    }
+
+    if (digitos.length <= 6) {
+        return digitos.slice(0, 3) + '.' + digitos.slice(3);
+    }
+
+    if (digitos.length <= 9) {
+        return digitos.slice(0, 3) + '.' + digitos.slice(3, 6) + '.' + digitos.slice(6);
+    }
+
+    return digitos.slice(0, 3) + '.' + digitos.slice(3, 6) + '.' + digitos.slice(6, 9) + '-' + digitos.slice(9, 11);
+}
+
+function formatarCnpj(digitos) {
+    let texto = digitos.slice(0, 2);
+
+    if (digitos.length > 2) {
+        texto += '.' + digitos.slice(2, 5);
+    }
+
+    if (digitos.length > 5) {
+        texto += '.' + digitos.slice(5, 8);
+    }
+
+    if (digitos.length > 8) {
+        texto += '/' + digitos.slice(8, 12);
+    }
+
+    if (digitos.length > 12) {
+        texto += '-' + digitos.slice(12, 14);
+    }
+
+    return texto;
+}
+
+function maskNumero(input) {
+    const bruto = input.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
+
+    if (bruto.startsWith('S')) {
+        input.value = bruto.length > 1 ? 'S/N' : 'S';
+        return;
+    }
+
+    const digitos = bruto.replace(/\D/g, '').slice(0, 10);
+    const letra = bruto.replace(/[0-9]/g, '').slice(0, 1);
+    input.value = digitos + (digitos !== '' && letra !== '' ? letra : '');
 }

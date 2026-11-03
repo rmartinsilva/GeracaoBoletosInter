@@ -57,7 +57,7 @@ class PainelAssinaturaTest extends TestCase
             ->assertSee('Dia de geração')
             ->assertSee('value="mensal"', false)
             ->assertSee('value="anual"', false)
-            ->assertSee('value="avulso"', false);
+            ->assertDontSee('value="avulso"', false);
     }
 
     public function test_cadastra_assinatura_mensal_e_gera_lancamentos_ate_o_mes_atual(): void
@@ -112,26 +112,6 @@ class PainelAssinaturaTest extends TestCase
             '2030-06-10',
             '2031-06-10',
         ], $vencimentos->map(fn ($data) => $data->toDateString())->all());
-    }
-
-    public function test_cadastra_assinatura_avulsa_com_um_unico_lancamento(): void
-    {
-        $cliente = Cliente::factory()->create();
-
-        $this->comoAdmin()
-            ->post(route('assinaturas.store', $cliente), $this->dadosValidos([
-                'periodicidade' => 'avulso',
-                'dia_vencimento' => '',
-                'dia_geracao' => '',
-                'data_inicio' => '2031-04-20',
-            ]))
-            ->assertSessionHas('success', 'Assinatura cadastrada com sucesso! Foi gerado 1 lançamento.');
-
-        $lancamento = Lancamento::query()->sole();
-        $this->assertSame('2031-04-20', $lancamento->competencia->toDateString());
-        $this->assertSame('2031-04-20', $lancamento->vencimento->toDateString());
-        $this->assertNull(Assinatura::query()->sole()->dia_vencimento);
-        $this->assertNull(Assinatura::query()->sole()->dia_geracao);
     }
 
     #[DataProvider('valoresAceitos')]
@@ -200,7 +180,7 @@ class PainelAssinaturaTest extends TestCase
             'valor negativo' => ['valor', '-10,00', 'O valor deve ser maior que zero.'],
             'valor com texto' => ['valor', 'mil reais', 'Informe um valor válido, por exemplo 1.500,00.'],
             'valor com três casas' => ['valor', '10,999', 'O valor deve ter no máximo duas casas decimais.'],
-            'periodicidade desconhecida' => ['periodicidade', 'semanal', 'Escolha uma periodicidade válida: mensal, anual ou avulso.'],
+            'periodicidade desconhecida' => ['periodicidade', 'semanal', 'Escolha uma periodicidade válida: mensal ou anual.'],
             'dia zero' => ['dia_vencimento', '0', 'O dia de vencimento deve ser um número de 1 a 31.'],
             'dia 32' => ['dia_vencimento', '32', 'O dia de vencimento deve ser um número de 1 a 31.'],
         ];
@@ -277,22 +257,6 @@ class PainelAssinaturaTest extends TestCase
         $this->assertSame('100.00', $linhas[0]->valor);
         $this->assertSame('2031-07-10', $linhas[1]->vencimento->toDateString());
         $this->assertSame('200.00', $linhas[1]->valor);
-    }
-
-    public function test_nao_gera_outro_lancamento_para_cobranca_avulsa(): void
-    {
-        $assinatura = Assinatura::factory()->avulso()->create(['data_inicio' => '2031-04-20']);
-        Lancamento::factory()->create([
-            'assinatura_id' => $assinatura->id,
-            'competencia' => '2031-04-20',
-            'vencimento' => '2031-04-20',
-        ]);
-
-        $this->comoAdmin()
-            ->post(route('lancamentos.store', [$assinatura->cliente_id, $assinatura->id]))
-            ->assertSessionHasErrors(['error' => 'A cobrança avulsa tem um único lançamento.']);
-
-        $this->assertSame(1, $assinatura->lancamentos()->count());
     }
 
     public function test_registra_pagamento(): void

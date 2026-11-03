@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Enums\SituacaoAssinatura;
+use App\Enums\SituacaoCliente;
+use App\Enums\SituacaoLancamento;
 use App\Models\Acesso;
 use App\Models\Assinatura;
 use App\Models\Cliente;
 use App\Models\Grupo;
+use App\Models\Lancamento;
 use App\Models\Usuario;
 use Database\Seeders\PermissoesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,6 +63,8 @@ class PainelClienteTest extends TestCase
         $response->assertDontSee('2 ativas');
         $response->assertDontSee('R$ 1.234,50');
         $response->assertSee('Novo Cliente');
+        $response->assertSee('Inativar');
+        $response->assertSee(route('clientes.inativar', $cliente->id), false);
         $response->assertSee(route('clientes.create'), false);
         $response->assertSee(route('clientes.show', $cliente->id), false);
     }
@@ -123,12 +129,21 @@ class PainelClienteTest extends TestCase
 
     public function test_formulario_de_cadastro_nao_pede_valor_nem_periodicidade(): void
     {
-        $this->comoAdmin()->get('/painel/clientes/criar')
-            ->assertOk()
+        $response = $this->comoAdmin()->get('/painel/clientes/criar');
+
+        $response->assertOk()
             ->assertSee('Novo Cliente')
             ->assertSee('O valor e a periodicidade ficam na assinatura.')
+            ->assertSee('Informe o CEP para preencher o endereço.')
+            ->assertSee('data-mascara="cpf-cnpj"', false)
+            ->assertSee('data-mascara="numero"', false)
+            ->assertSee('data-mascara="cep"', false)
+            ->assertSee('pattern="[^@\s]+@[^@\s]+\.[^@\s]+"', false)
             ->assertDontSee('name="valor"', false)
             ->assertDontSee('name="periodicidade"', false);
+
+        $html = $response->getContent();
+        $this->assertLessThan(strpos($html, 'id="endereco"'), strpos($html, 'id="cep"'));
     }
 
     public function test_cadastra_cliente(): void
@@ -146,6 +161,7 @@ class PainelClienteTest extends TestCase
         $this->assertSame('Padaria Pão Quente', $cliente->nome);
         $this->assertSame('financeiro@paoquente.com.br', $cliente->email);
         $this->assertSame('Joana Lima', $cliente->nome_contato);
+        $this->assertSame(SituacaoCliente::Ativo, $cliente->situacao);
     }
 
     public function test_cadastro_exige_todos_os_campos(): void
@@ -178,8 +194,36 @@ class PainelClienteTest extends TestCase
     {
         return [
             'e-mail inválido' => ['email', 'financeiro-sem-arroba', 'Informe um e-mail válido.'],
+            'e-mail sem domínio' => ['email', 'financeiro@cliente', 'Informe um e-mail válido.'],
             'nome vazio' => ['nome', '', 'O nome do cliente é obrigatório.'],
         ];
+    }
+
+    public function test_cadastro_guarda_documento_numero_e_email_normalizados(): void
+    {
+        $this->comoAdmin()->post('/painel/clientes', $this->dadosValidos([
+            'email' => 'Financeiro@PaoQuente.com.br',
+            'tipo_pessoa' => 'juridica',
+            'cpf_cnpj' => '12.345.678/0001-99',
+            'numero' => 's/n',
+            'uf' => 'go',
+        ]))->assertSessionHasNoErrors();
+
+        $cliente = Cliente::query()->sole();
+        $this->assertSame('financeiro@paoquente.com.br', $cliente->email);
+        $this->assertSame('12345678000199', $cliente->cpf_cnpj);
+        $this->assertSame('S/N', $cliente->numero);
+        $this->assertSame('GO', $cliente->uf);
+    }
+
+    public function test_pessoa_fisica_nao_aceita_cnpj(): void
+    {
+        $this->comoAdmin()->post('/painel/clientes', $this->dadosValidos([
+            'tipo_pessoa' => 'fisica',
+            'cpf_cnpj' => '12.345.678/0001-99',
+        ]))->assertSessionHasErrors(['cpf_cnpj' => 'Pessoa física usa CPF com 11 dígitos.']);
+
+        $this->assertSame(0, Cliente::query()->count());
     }
 
     public function test_formulario_de_edicao_vem_preenchido(): void
@@ -192,6 +236,8 @@ class PainelClienteTest extends TestCase
             ->assertOk()
             ->assertSee('Editar Cliente')
             ->assertSee('value="Escola Saber"', false)
+            ->assertSee('Inativar')
+            ->assertSee(route('clientes.inativar', $cliente->id), false)
             ->assertDontSee('name="valor"', false)
             ->assertDontSee('name="periodicidade"', false);
     }
@@ -273,6 +319,7 @@ class PainelClienteTest extends TestCase
 
         $this->assertSame(1, Cliente::query()->count());
         $this->assertSame('Cliente Original', $cliente->fresh()->nome);
+        $this->assertSame(SituacaoCliente::Ativo, $cliente->fresh()->situacao);
     }
 
     /**
@@ -287,6 +334,8 @@ class PainelClienteTest extends TestCase
             'abrir edição' => ['GET', '/painel/clientes/{id}/editar', 'cliente_editar'],
             'atualizar' => ['PUT', '/painel/clientes/{id}', 'cliente_editar'],
             'deletar' => ['DELETE', '/painel/clientes/{id}', 'cliente_deletar'],
+            'inativar' => ['POST', '/painel/clientes/{id}/inativar', 'cliente_editar'],
+            'reativar' => ['POST', '/painel/clientes/{id}/reativar', 'cliente_editar'],
         ];
     }
 
@@ -303,6 +352,7 @@ class PainelClienteTest extends TestCase
         $response->assertDontSee('Novo Cliente');
         $response->assertDontSee('Editar');
         $response->assertDontSee('Deletar');
+        $response->assertDontSee('Inativar');
         $response->assertDontSee(route('clientes.edit', $cliente->id), false);
     }
 
@@ -323,6 +373,145 @@ class PainelClienteTest extends TestCase
     public function test_id_que_nao_e_numero_nao_encontra_a_rota(): void
     {
         $this->comoAdmin()->get('/painel/clientes/abc/editar')->assertNotFound();
+    }
+
+    public function test_listagem_filtra_clientes_inativos(): void
+    {
+        Cliente::factory()->create(['nome' => 'Cliente Ativo']);
+        Cliente::factory()->inativo()->create(['nome' => 'Cliente Encerrado']);
+
+        $this->comoAdmin()->get('/painel/clientes?situacao=inativo')
+            ->assertOk()
+            ->assertSee('Cliente Encerrado')
+            ->assertSee('Inativo')
+            ->assertSee('Reativar')
+            ->assertDontSee('Cliente Ativo');
+    }
+
+    public function test_inativar_encerra_assinaturas_e_cancela_lancamentos_futuros(): void
+    {
+        $this->travelTo('2031-06-15 15:00:00');
+
+        $cliente = Cliente::factory()->create();
+        $ativa = Assinatura::factory()->mensal()->create([
+            'cliente_id' => $cliente->id,
+            'data_inicio' => '2031-05-01',
+        ]);
+        $jaEncerrada = Assinatura::factory()->encerrada()->create([
+            'cliente_id' => $cliente->id,
+            'data_inicio' => '2030-01-01',
+            'data_fim' => '2030-12-31',
+        ]);
+        $pago = Lancamento::factory()->pago()->create([
+            'assinatura_id' => $ativa->id,
+            'competencia' => '2031-05-01',
+            'vencimento' => '2031-05-10',
+        ]);
+        $emAberto = Lancamento::factory()->create([
+            'assinatura_id' => $ativa->id,
+            'competencia' => '2031-06-01',
+            'vencimento' => '2031-06-10',
+        ]);
+        $futuro = Lancamento::factory()->create([
+            'assinatura_id' => $ativa->id,
+            'competencia' => '2031-07-01',
+            'vencimento' => '2031-07-10',
+        ]);
+
+        $this->comoAdmin()
+            ->post(route('clientes.inativar', $cliente))
+            ->assertRedirect(route('clientes.show', $cliente))
+            ->assertSessionHas('success', 'Cliente inativado. A assinatura ativa foi encerrada e os lançamentos com vencimento posterior foram cancelados.');
+
+        $this->assertSame(SituacaoCliente::Inativo, $cliente->fresh()->situacao);
+        $this->assertSame(SituacaoAssinatura::Encerrada, $ativa->fresh()->situacao);
+        $this->assertSame('2031-06-15', $ativa->fresh()->data_fim->toDateString());
+        $this->assertSame(SituacaoAssinatura::Encerrada, $jaEncerrada->fresh()->situacao);
+        $this->assertSame('2030-12-31', $jaEncerrada->fresh()->data_fim->toDateString());
+        $this->assertSame(SituacaoLancamento::Pago, $pago->fresh()->situacao);
+        $this->assertSame(SituacaoLancamento::Aberto, $emAberto->fresh()->situacao);
+        $this->assertSame(SituacaoLancamento::Cancelado, $futuro->fresh()->situacao);
+    }
+
+    public function test_inativar_antes_do_inicio_usa_a_data_de_inicio(): void
+    {
+        $this->travelTo('2031-06-15 15:00:00');
+
+        $cliente = Cliente::factory()->create();
+        $assinatura = Assinatura::factory()->mensal()->create([
+            'cliente_id' => $cliente->id,
+            'data_inicio' => '2031-08-01',
+        ]);
+        $lancamento = Lancamento::factory()->create([
+            'assinatura_id' => $assinatura->id,
+            'competencia' => '2031-08-01',
+            'vencimento' => '2031-08-10',
+        ]);
+
+        $this->comoAdmin()
+            ->post(route('clientes.inativar', $cliente))
+            ->assertRedirect(route('clientes.show', $cliente));
+
+        $this->assertSame('2031-08-01', $assinatura->fresh()->data_fim->toDateString());
+        $this->assertSame(SituacaoLancamento::Cancelado, $lancamento->fresh()->situacao);
+    }
+
+    public function test_reativar_nao_reabre_a_assinatura(): void
+    {
+        $cliente = Cliente::factory()->inativo()->create();
+        $assinatura = Assinatura::factory()->encerrada()->create(['cliente_id' => $cliente->id]);
+
+        $this->comoAdmin()
+            ->post(route('clientes.reativar', $cliente))
+            ->assertRedirect(route('clientes.show', $cliente))
+            ->assertSessionHas('success', 'Cliente reativado. As assinaturas encerradas continuam encerradas; cadastre uma nova se a cobrança voltar.');
+
+        $this->assertSame(SituacaoCliente::Ativo, $cliente->fresh()->situacao);
+        $this->assertSame(SituacaoAssinatura::Encerrada, $assinatura->fresh()->situacao);
+    }
+
+    public function test_ficha_de_cliente_inativo_nao_oferece_nova_assinatura(): void
+    {
+        $cliente = Cliente::factory()->inativo()->create(['nome' => 'Cliente Parado']);
+
+        $this->comoAdmin()->get(route('clientes.show', $cliente))
+            ->assertOk()
+            ->assertSee('Cliente Parado')
+            ->assertSee('Inativo')
+            ->assertSee('Reativar')
+            ->assertDontSee('Nova Assinatura')
+            ->assertDontSee('>Inativar<', false);
+    }
+
+    public function test_quem_so_visualiza_nao_ve_o_botao_de_inativar(): void
+    {
+        $cliente = Cliente::factory()->create();
+
+        $this->comoUsuarioCom(['cliente_visualizar'])
+            ->get(route('clientes.show', $cliente))
+            ->assertOk()
+            ->assertSee('Ativo')
+            ->assertDontSee('Inativar')
+            ->assertDontSee('Reativar');
+    }
+
+    public function test_nao_cadastra_assinatura_para_cliente_inativo(): void
+    {
+        $cliente = Cliente::factory()->inativo()->create();
+
+        $this->comoAdmin()
+            ->post(route('assinaturas.store', $cliente), [
+                'descricao' => 'Mensalidade',
+                'valor' => '150,00',
+                'periodicidade' => 'mensal',
+                'dia_vencimento' => '10',
+                'dia_geracao' => '5',
+                'data_inicio' => '2031-04-10',
+            ])
+            ->assertRedirect(route('clientes.show', $cliente))
+            ->assertSessionHasErrors(['error' => 'Cliente inativo não recebe assinatura nova. Reative o cliente antes.']);
+
+        $this->assertSame(0, Assinatura::query()->count());
     }
 
     /**

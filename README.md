@@ -8,7 +8,7 @@ O painel já cobre o cadastro e o acompanhamento das cobranças:
 
 - Painel administrativo em `/painel` com login por `login` (não por e-mail), grupos de usuário e permissões por chave (`usuario_*` e `cliente_*`).
 - Cadastro de usuários e de clientes (nome, e-mail, contato e os dados do pagador: tipo de pessoa, CPF ou CNPJ, endereço, cidade, UF e CEP).
-- Cadastro de assinaturas: descrição, valor, periodicidade (mensal, anual ou avulso), dia de vencimento, dia de geração, data de início e de fim, e situação (ativa ou encerrada).
+- Cadastro de assinaturas: descrição, valor, periodicidade (mensal ou anual), dia de vencimento, dia de geração, data de início e de fim, e situação (ativa ou encerrada). A cobrança avulsa fica na ficha do cliente e emite o boleto na hora, só com descrição, valor e vencimento.
 - Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento.
 - Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
@@ -124,9 +124,18 @@ php artisan cobrancas:gerar
 
 No dia de geração da assinatura, o comando pede o boleto ao Inter. A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail, com o PDF em anexo. Não emite a mesma cobrança duas vezes.
 
-Mensal e anual precisam do dia de geração. Se esse dia for posterior ao vencimento, o boleto sai no mês anterior. O dia 31 acompanha o último dia do mês. No avulso, o campo pode ficar vazio e a cobrança sai na data de início. Sem CPF ou CNPJ e endereço completo no cliente, o lançamento fica com o erro e o banco não é chamado.
+Mensal e anual precisam do dia de geração. Se esse dia for posterior ao vencimento, o boleto sai no mês anterior. O dia 31 acompanha o último dia do mês. A cobrança avulsa não entra nessa rotina: na ficha do cliente, o boleto é emitido ao salvar, com a data de vencimento informada. Sem CPF ou CNPJ e endereço completo no cliente, o lançamento fica com o erro e o banco não é chamado. Se o campo "E-mail de falha" estiver preenchido em `/painel/cobranca/email`, esse endereço recebe um aviso. O mesmo motivo não é reenviado nas execuções seguintes.
 
-O comando está agendado para todo dia às 08:00, horário de Brasília. No servidor, o cron precisa chamar `php artisan schedule:run` a cada minuto. O e-mail usa o mailer configurado em `MAIL_*`.
+O comando está agendado para todo dia às 08:00, horário de Brasília. No servidor, o cron precisa chamar `php artisan schedule:run` a cada minuto. Quem pode editar clientes também dispara a mesma rotina no botão "Gerar cobranças agora", no dashboard. Uma cobrança de assinatura que já falhou é tentada de novo nas execuções seguintes. O e-mail usa o mailer configurado em `MAIL_*`.
+
+### Importar clientes já cobrados
+
+```bash
+php artisan clientes:importar
+php artisan clientes:importar --de=2021-01-01 --ate=2026-11-03 --por=emissao
+```
+
+O comando lê as cobranças do ambiente em `INTER_AMBIENTE` e cadastra cada pagador que ainda não existe, usando o CPF ou CNPJ para não duplicar. O padrão percorre os últimos cinco anos pela data de emissão. `--por` aceita `emissao`, `vencimento` ou `pagamento`. Quem não tiver e-mail no Inter entra mesmo assim, e o endereço precisa ser preenchido no painel antes de enviar um boleto. A importação não cria assinatura.
 
 ## Testes
 
@@ -166,7 +175,7 @@ No painel:
 
 - **Usuários** — cadastro com vínculo a grupos; cada grupo tem acessos (permissões) por chave, como `usuario_editar` e `cliente_visualizar`.
 - **Clientes** — nome, e-mail, contato e os dados do pagador exigidos pelo boleto, com assinaturas vinculadas.
-- **Assinaturas** — descrição, valor (formato brasileiro, ex. `1.500,00`), periodicidade (`mensal`, `anual` ou `avulso`), dia de vencimento e dia de geração (1–31; no avulso os dois podem ficar vazios), data de início, data de fim e situação (`ativa`/`encerrada`). Encerrar a assinatura cancela os lançamentos abertos com vencimento posterior à data de fim.
+- **Assinaturas** — descrição, valor (formato brasileiro, ex. `1.500,00`), periodicidade (`mensal` ou `anual`), dia de vencimento e dia de geração (1–31), data de início, data de fim e situação (`ativa`/`encerrada`). Encerrar a assinatura cancela os lançamentos abertos com vencimento posterior à data de fim. A cobrança avulsa é outro cadastro, na ficha do cliente.
 - **Lançamentos** — gerados por período a partir da assinatura, com situações aberto, pago e cancelado, registro de pagamento e, depois da emissão, a linha digitável, o Pix e a data do e-mail.
 - **E-mail da cobrança** — texto padrão, com os marcadores `{nome}`, `{descricao}`, `{valor}`, `{vencimento}`, `{linha_digitavel}` e `{pix}`.
 

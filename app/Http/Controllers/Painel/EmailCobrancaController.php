@@ -13,10 +13,13 @@ class EmailCobrancaController extends PainelController
     {
         $this->checkPermissionOrFail('cliente_editar');
 
+        $configuracao = ConfiguracaoCobranca::atual();
+
         return view('painel.cobranca.email', [
             'usuario' => $this->usuario,
             'listaPermissoes' => $this->listaPermissoes,
-            'corpo' => ConfiguracaoCobranca::atual()->corpo_email,
+            'corpo' => $configuracao->corpo_email,
+            'emailFalha' => $configuracao->email_falha,
         ]);
     }
 
@@ -27,10 +30,11 @@ class EmailCobrancaController extends PainelController
         $configuracao = ConfiguracaoCobranca::atual();
         $configuracao->update([
             'corpo_email' => $request->validated('corpo_email'),
+            'email_falha' => $request->validated('email_falha'),
         ]);
 
         return redirect()
             ->route('cobranca.email.edit')
-            ->with('success', 'Texto do e-mail atualizado com sucesso!');
+            ->with('success', 'Configuração da cobrança atualizada com sucesso!');
     }
 }

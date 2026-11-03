@@ -5,11 +5,13 @@ namespace App\Services;
 use App\DTO\Assinaturas\CreateAssinaturaDTO;
 use App\DTO\Assinaturas\UpdateAssinaturaDTO;
 use App\Enums\SituacaoAssinatura;
+use App\Enums\SituacaoCliente;
 use App\Enums\SituacaoLancamento;
 use App\Exceptions\RegraNegocioException;
 use App\Models\Assinatura;
 use App\Models\Lancamento;
 use App\Repositories\Contracts\AssinaturaRepositoryInterface;
+use App\Repositories\Contracts\ClienteRepositoryInterface;
 use App\Repositories\Contracts\LancamentoRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,7 @@ class AssinaturaService
     public function __construct(
         protected AssinaturaRepositoryInterface $assinaturaRepository,
         protected LancamentoRepositoryInterface $lancamentoRepository,
+        protected ClienteRepositoryInterface $clienteRepository,
         protected PlanejadorDeLancamentos $planejador,
         protected DataHoraService $dataHora,
     ) {}
@@ -54,6 +57,16 @@ class AssinaturaService
      */
     public function criar(CreateAssinaturaDTO $dto): array
     {
+        $cliente = $this->clienteRepository->buscarModelo($dto->cliente_id);
+
+        if (! $cliente) {
+            throw new RegraNegocioException('Cliente não encontrado.');
+        }
+
+        if ($cliente->situacao !== SituacaoCliente::Ativo) {
+            throw new RegraNegocioException('Cliente inativo não recebe assinatura nova. Reative o cliente antes.');
+        }
+
         return DB::transaction(function () use ($dto): array {
             $assinatura = $this->assinaturaRepository->criar($dto);
             $geracao = $this->gerarPrevistos((int) $assinatura->id);
@@ -100,6 +113,29 @@ class AssinaturaService
     }
 
     /**
+     * Encerra a assinatura e cancela lançamentos em aberto com vencimento posterior.
+     */
+    public function encerrar(int $id, string $dataFim): void
+    {
+        DB::transaction(function () use ($id, $dataFim): void {
+            $assinatura = $this->exigirModelo($id);
+
+            if ($assinatura->situacao === SituacaoAssinatura::Encerrada) {
+                return;
+            }
+
+            $inicio = $assinatura->data_inicio->toDateString();
+
+            if ($dataFim < $inicio) {
+                $dataFim = $inicio;
+            }
+
+            $this->assinaturaRepository->encerrar($id, $dataFim);
+            $this->lancamentoRepository->cancelarAbertosComVencimentoApos($id, $dataFim);
+        });
+    }
+
+    /**
      * Gera o lançamento do período seguinte.
      */
     public function gerarProximo(int $assinaturaId): Lancamento
@@ -108,6 +144,12 @@ class AssinaturaService
 
         if ($assinatura->situacao !== SituacaoAssinatura::Ativa) {
             throw new RegraNegocioException('Assinatura encerrada não gera novos lançamentos.');
+        }
+
+        $assinatura->loadMissing('cliente');
+
+        if ($assinatura->cliente->situacao !== SituacaoCliente::Ativo) {
+            throw new RegraNegocioException('Cliente inativo não gera novos lançamentos.');
         }
 
         $periodo = $this->planejador->proximo(

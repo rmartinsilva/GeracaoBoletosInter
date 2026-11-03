@@ -3,11 +3,12 @@
 namespace App\Services;
 
 use App\DTO\Inter\EmitirCobrancaDTO;
-use App\Enums\Periodicidade;
 use App\Enums\SituacaoLancamento;
 use App\Exceptions\RegraNegocioException;
 use App\Mail\CobrancaEmitida;
+use App\Mail\FalhaCobranca;
 use App\Models\Assinatura;
+use App\Models\Cliente;
 use App\Models\ConfiguracaoCobranca;
 use App\Models\Lancamento;
 use App\Repositories\Contracts\AssinaturaRepositoryInterface;
@@ -21,6 +22,7 @@ use Throwable;
 /**
  * No dia de geração emite o boleto da assinatura e, assim que o Inter devolve o PDF, envia o e-mail.
  * A emissão é assíncrona: uma cobrança pedida hoje pode só ter boleto na próxima execução.
+ * Cobrança de assinatura que já falhou é tentada de novo em qualquer dia.
  */
 class EmissorDeCobrancas
 {
@@ -60,8 +62,39 @@ class EmissorDeCobrancas
                 continue;
             }
 
+            $vistos[$lancamento->id] = true;
             $this->processar($lancamento, $resumo);
         }
+
+        foreach ($this->lancamentos->avulsosEmAberto() as $lancamento) {
+            if (isset($vistos[$lancamento->id])) {
+                continue;
+            }
+
+            $vistos[$lancamento->id] = true;
+            $this->processar($lancamento, $resumo);
+        }
+
+        foreach ($this->lancamentos->assinaturasComFalhaDeEmissao() as $lancamento) {
+            if (isset($vistos[$lancamento->id])) {
+                continue;
+            }
+
+            $this->processar($lancamento, $resumo);
+        }
+
+        return $resumo;
+    }
+
+    /**
+     * Emite uma cobrança avulsa na hora. O cron das 08:00 retoma o que ficar sem e-mail.
+     *
+     * @return array{emitidas: int, enviadas: int, aguardando: int, falhas: int}
+     */
+    public function emitirLancamento(Lancamento $lancamento): array
+    {
+        $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0];
+        $this->processar($lancamento, $resumo);
 
         return $resumo;
     }
@@ -71,7 +104,7 @@ class EmissorDeCobrancas
      */
     private function lancamentoDoDia(Assinatura $assinatura, string $hoje, array &$resumo): ?Lancamento
     {
-        if ($assinatura->periodicidade !== Periodicidade::Avulso && $assinatura->dia_geracao === null) {
+        if ($assinatura->dia_geracao === null) {
             $resumo['falhas']++;
 
             return null;
@@ -109,7 +142,7 @@ class EmissorDeCobrancas
      */
     private function processar(Lancamento $lancamento, array &$resumo): void
     {
-        $lancamento->loadMissing('assinatura.cliente');
+        $lancamento->loadMissing('assinatura.cliente', 'cliente');
 
         if ($lancamento->situacao !== SituacaoLancamento::Aberto || $lancamento->email_enviado_em !== null) {
             return;
@@ -123,19 +156,18 @@ class EmissorDeCobrancas
 
             $this->concluir($lancamento, $resumo);
         } catch (ExcecaoInter|RegraNegocioException $excecao) {
-            $this->lancamentos->registrarFalha($lancamento, $excecao->getMessage());
+            $this->notificarFalha($lancamento, $excecao->getMessage());
             $resumo['falhas']++;
         } catch (Throwable $excecao) {
             report($excecao);
-            $this->lancamentos->registrarFalha($lancamento, 'Não foi possível concluir a cobrança.');
+            $this->notificarFalha($lancamento, 'Não foi possível concluir a cobrança.');
             $resumo['falhas']++;
         }
     }
 
     private function emitir(Lancamento $lancamento): void
     {
-        $assinatura = $lancamento->assinatura;
-        $cliente = $assinatura->cliente;
+        [$cliente] = $this->origem($lancamento);
         $pagador = $cliente->pagadorDaCobranca();
 
         $resposta = $this->cobranca->emitir(new EmitirCobrancaDTO(
@@ -159,7 +191,7 @@ class EmissorDeCobrancas
         $situacao = $consulta['cobranca']['situacao'] ?? null;
 
         if ($situacao === 'FALHA_EMISSAO') {
-            $this->lancamentos->registrarFalha($lancamento, 'O Banco Inter recusou a emissão desta cobrança.');
+            $this->notificarFalha($lancamento, 'O Banco Inter recusou a emissão desta cobrança.');
             $resumo['falhas']++;
 
             return;
@@ -191,18 +223,21 @@ class EmissorDeCobrancas
         $lancamento->linha_digitavel = $linha;
         $lancamento->pix_copia_cola = is_string($pix) ? $pix : null;
 
-        $assinatura = $lancamento->assinatura;
-        $cliente = $assinatura->cliente;
+        [$cliente, $descricao] = $this->origem($lancamento);
         $texto = $this->corpoEmail->montar(
             ConfiguracaoCobranca::atual()->corpo_email,
             $cliente,
-            $assinatura,
+            $descricao,
             $lancamento,
         );
 
+        if (! is_string($cliente->email) || filter_var($cliente->email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RegraNegocioException('O cliente '.$cliente->nome.' precisa de um e-mail para receber o boleto.');
+        }
+
         Mail::to($cliente->email)->send(new CobrancaEmitida(
             texto: $texto,
-            assunto: 'Cobrança: '.$assinatura->descricao,
+            assunto: 'Cobrança: '.$descricao,
             caminhoPdf: $caminho,
         ));
 
@@ -214,5 +249,64 @@ class EmissorDeCobrancas
             now(),
         );
         $resumo['enviadas']++;
+    }
+
+    /**
+     * Grava a falha e avisa o responsável uma vez por motivo. O mesmo erro não gera outro e-mail.
+     */
+    private function notificarFalha(Lancamento $lancamento, string $mensagem): void
+    {
+        $jaAvisada = $lancamento->erro_emissao === $mensagem && $lancamento->falha_notificada_em !== null;
+
+        $this->lancamentos->registrarFalha($lancamento, $mensagem);
+
+        if ($jaAvisada) {
+            return;
+        }
+
+        $destino = ConfiguracaoCobranca::atual()->email_falha;
+
+        if (! is_string($destino) || $destino === '') {
+            return;
+        }
+
+        [$cliente, $descricao] = $this->origem($lancamento);
+
+        try {
+            Mail::to($destino)->send(new FalhaCobranca(
+                texto: implode("\n\n", [
+                    'A cobrança não foi emitida.',
+                    'Cliente: '.$cliente->nome,
+                    'Cobrança: '.$descricao,
+                    'Valor: R$ '.number_format((float) $lancamento->valor, 2, ',', '.'),
+                    'Vencimento: '.$lancamento->vencimento->format('d/m/Y'),
+                    'Motivo: '.$mensagem,
+                ]),
+                assunto: 'Falha na cobrança: '.$descricao,
+            ));
+
+            $this->lancamentos->registrarAvisoDeFalha($lancamento, now());
+        } catch (Throwable $excecao) {
+            report($excecao);
+        }
+    }
+
+    /**
+     * @return array{0: Cliente, 1: string}
+     */
+    private function origem(Lancamento $lancamento): array
+    {
+        $lancamento->loadMissing('assinatura.cliente', 'cliente');
+        $assinatura = $lancamento->assinatura;
+
+        if ($assinatura !== null) {
+            return [$assinatura->cliente, $assinatura->descricao];
+        }
+
+        if ($lancamento->cliente === null) {
+            throw new RegraNegocioException('A cobrança avulsa não tem cliente.');
+        }
+
+        return [$lancamento->cliente, (string) $lancamento->descricao];
     }
 }

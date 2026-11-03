@@ -4,7 +4,7 @@ Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar com o código d
 
 ## Visão geral
 
-Aplicação Laravel 13 / PHP 8.4 para gerar cobranças mensais (boletos) pelo Banco Inter. Há uma landing page pública e um painel administrativo (`/painel`) com login, permissões por grupo, cadastro de usuários, cadastro de clientes (nome, e-mail, contato e os dados do pagador) e de assinaturas, com os lançamentos de cada período. A assinatura guarda o dia de vencimento e o dia de geração. O comando `cobrancas:gerar` emite o boleto nesse dia e envia o e-mail quando o PDF fica pronto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
+Aplicação Laravel 13 / PHP 8.4 para gerar cobranças mensais (boletos) pelo Banco Inter. Há uma landing page pública e um painel administrativo (`/painel`) com login, permissões por grupo, cadastro de usuários, cadastro de clientes (nome, e-mail, contato, dados do pagador e situação ativo ou inativo) e de assinaturas, com os lançamentos de cada período. Inativar o cliente encerra as assinaturas ativas e cancela os lançamentos com vencimento posterior. A assinatura guarda o dia de vencimento e o dia de geração. O comando `cobrancas:gerar` emite o boleto nesse dia e envia o e-mail quando o PDF fica pronto. O dashboard repete essa rotina no botão "Gerar cobranças agora". Uma cobrança de assinatura que já falhou continua sendo tentada nas execuções seguintes, mesmo fora do dia de geração. O texto desse e-mail e o endereço que recebe aviso de falha ficam em `/painel/cobranca/email`. O comando `clientes:importar` cadastra os pagadores das cobranças do ambiente configurado que ainda não existem, sem criar assinatura. A cobrança avulsa não é assinatura: na ficha do cliente, descrição, valor e vencimento emitem o boleto na hora.
 
 O código começou a partir de um template antigo de site. As sobras dele (portfólio, notícias, banners, "De Lollo", "TechPro") estão sendo removidas, e os testes de feature garantem que não voltem. O `SETUP.md` ainda descreve esse template em alguns pontos (por exemplo, lista 44 permissões, mas hoje só existem as chaves `usuario_*` e `cliente_*`). Na dúvida, confie no código.
 
@@ -54,7 +54,7 @@ Controller → Service (`app/Services/`) → interface do repositório (`app/Rep
 
 ### Integração com o Banco Inter
 
-A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O cliente HTTP fica em `App\Services\Inter`. Quem grava o boleto e dispara o e-mail é o `EmissorDeCobrancas`, chamado por `php artisan cobrancas:gerar` (agendado todo dia às 08:00, horário de Brasília). A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail.
+A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O cliente HTTP fica em `App\Services\Inter`. Quem grava o boleto e dispara o e-mail é o `EmissorDeCobrancas`, chamado por `php artisan cobrancas:gerar` (agendado todo dia às 08:00, horário de Brasília) e pelo botão do dashboard. A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail. Uma falha de emissão grava o motivo no lançamento e, se houver e-mail de falha configurado, avisa esse endereço uma vez por motivo.
 
 - `config/inter.php` escolhe o ambiente por `INTER_AMBIENTE` (`sandbox` ou `producao`). A URL base, o OAuth em `/oauth/v2/token` e o certificado mTLS acompanham essa escolha. Com a configuração em cache, rode `php artisan config:clear` depois de trocar o ambiente.
 - O token dura 60 minutos, é reutilizado pelo cache e não é impresso. Os escopos padrão são `boleto-cobranca.read` e `boleto-cobranca.write`.
@@ -100,7 +100,7 @@ Convenção: persistir em UTC e converter para o horário de Brasília só na in
 ### Testes
 
 - Os testes sempre rodam em SQLite em memória e com locale `pt_BR` (fixados no `phpunit.xml`), seja qual for o banco ou o `APP_LOCALE` configurado no `.env` local.
-- Entre os models de domínio, só o `Cliente` tem factory (`ClienteFactory`, com os estados `mensal()`, `anual()` e `avulso()`). A `UserFactory` aponta para um model `User` que não existe. Os testes de feature populam o banco com o `PermissoesSeeder` e autenticam com `actingAs($usuario, 'painel')->withSession(['permissoes' => $usuario->acessos()])`.
+- Entre os models de domínio, o `Cliente` tem factory (`ClienteFactory`, com o estado `comPagador()`) e a `Assinatura` tem `mensal()`, `anual()` e `encerrada()`. A `UserFactory` aponta para um model `User` que não existe. Os testes de feature populam o banco com o `PermissoesSeeder` e autenticam com `actingAs($usuario, 'painel')->withSession(['permissoes' => $usuario->acessos()])`.
 - Faça uma requisição por teste (use data providers para variações). O `PainelController` recebe a `Request` e as permissões no construtor, e o Laravel reaproveita a instância do controller entre requisições do mesmo teste, então uma segunda chamada enxerga a query string e as permissões da primeira.
 - Os testes verificam textos renderizados em português (por exemplo, "Cobranças mensais em um só lugar"), então mudar textos da interface pode quebrá-los.
 - Para testar datas, use `$this->travelTo()` com um horário UTC entre 00h e 03h, quando o dia em Brasília ainda é o anterior (veja `ConvencaoDataHoraTest`). Escolha datas longe da data real, para o teste não passar por coincidência.

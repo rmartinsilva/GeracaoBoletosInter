@@ -30,20 +30,6 @@ class PlanejadorDeLancamentos
         $inicio = $this->dia($dataInicio);
         $fim = $dataFim !== null ? $this->dia($dataFim) : null;
 
-        if ($periodicidade === Periodicidade::Avulso) {
-            if ($fim !== null && $inicio->gt($fim)) {
-                return ['periodos' => [], 'limitado' => false];
-            }
-
-            return [
-                'periodos' => [[
-                    'competencia' => $inicio->toDateString(),
-                    'vencimento' => $inicio->toDateString(),
-                ]],
-                'limitado' => false,
-            ];
-        }
-
         $diaVencimento = $this->exigirDia($diaVencimento);
         $limiteDoMes = $this->dia($hoje)->endOfMonth()->startOfDay();
         $atual = $this->primeiroVencimento($inicio, $diaVencimento, $periodicidade);
@@ -93,10 +79,6 @@ class PlanejadorDeLancamentos
         ?string $dataFim,
         ?int $diaVencimento,
     ): array {
-        if ($periodicidade === Periodicidade::Avulso && $ultimaCompetencia !== null) {
-            throw new RegraNegocioException('A cobrança avulsa tem um único lançamento.');
-        }
-
         if ($ultimaCompetencia === null) {
             $planejado = $this->planejar($periodicidade, $dataInicio, $dataFim, $diaVencimento, $dataInicio);
 
@@ -142,23 +124,6 @@ class PlanejadorDeLancamentos
         $hoje = $this->dia($hoje);
         $inicio = $this->dia($dataInicio);
         $fim = $dataFim !== null ? $this->dia($dataFim) : null;
-
-        if ($periodicidade === Periodicidade::Avulso) {
-            $vencimento = $inicio;
-
-            if ($fim !== null && $vencimento->gt($fim)) {
-                return null;
-            }
-
-            if (! $hoje->equalTo($this->diaDaGeracaoAvulsa($vencimento, $diaGeracao))) {
-                return null;
-            }
-
-            return [
-                'competencia' => $vencimento->toDateString(),
-                'vencimento' => $vencimento->toDateString(),
-            ];
-        }
 
         $diaVencimento = $this->exigirDia($diaVencimento);
 
@@ -242,20 +207,5 @@ class PlanejadorDeLancamentos
     private function caiNesteDia(CarbonImmutable $data, int $dia): bool
     {
         return $data->day === min($dia, $data->daysInMonth);
-    }
-
-    private function diaDaGeracaoAvulsa(CarbonImmutable $vencimento, ?int $diaGeracao): CarbonImmutable
-    {
-        if ($diaGeracao === null) {
-            return $vencimento;
-        }
-
-        $mes = $vencimento->startOfMonth();
-
-        if ($diaGeracao > $vencimento->day) {
-            $mes = $mes->subMonth();
-        }
-
-        return $this->vencimentoNoMes($mes, $diaGeracao);
     }
 }

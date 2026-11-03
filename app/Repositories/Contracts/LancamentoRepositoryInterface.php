@@ -24,6 +24,18 @@ interface LancamentoRepositoryInterface
     public function criar(int $assinaturaId, string $competencia, string $valor, string $vencimento): Lancamento;
 
     /**
+     * Cria uma cobrança avulsa, sem assinatura, já com o vencimento informado.
+     */
+    public function criarAvulsa(int $clienteId, string $descricao, string $valor, string $vencimento): Lancamento;
+
+    /**
+     * Cobranças avulsas do cliente, da mais recente para a mais antiga.
+     *
+     * @return Collection<int, Lancamento>
+     */
+    public function listarAvulsas(int $clienteId): Collection;
+
+    /**
      * Lançamento desta assinatura, ou null se o id não pertencer a ela.
      */
     public function buscarDaAssinatura(int $assinaturaId, int $lancamentoId): ?Lancamento;
@@ -66,6 +78,20 @@ interface LancamentoRepositoryInterface
     public function pendentesDeEmail(): Collection;
 
     /**
+     * Cobranças avulsas em aberto que ainda não tiveram o e-mail enviado.
+     *
+     * @return Collection<int, Lancamento>
+     */
+    public function avulsosEmAberto(): Collection;
+
+    /**
+     * Cobranças de assinatura que já tentaram emitir, falharam e continuam sem boleto.
+     *
+     * @return Collection<int, Lancamento>
+     */
+    public function assinaturasComFalhaDeEmissao(): Collection;
+
+    /**
      * Grava o identificador devolvido na emissão e limpa o erro anterior.
      */
     public function registrarSolicitacao(Lancamento $lancamento, string $codigoSolicitacao): void;
@@ -85,4 +111,9 @@ interface LancamentoRepositoryInterface
      * Guarda o motivo pelo qual a emissão ou o e-mail não concluíram. Null limpa o erro.
      */
     public function registrarFalha(Lancamento $lancamento, ?string $erro): void;
+
+    /**
+     * Marca que o aviso desta falha já foi enviado ao responsável.
+     */
+    public function registrarAvisoDeFalha(Lancamento $lancamento, CarbonInterface $quando): void;
 }

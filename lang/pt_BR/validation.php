@@ -209,6 +209,7 @@ return [
         'dia_vencimento' => 'dia de vencimento',
         'dia_geracao' => 'dia de geração',
         'corpo_email' => 'texto do e-mail',
+        'email_falha' => 'e-mail de falha',
         'cpf_cnpj' => 'CPF ou CNPJ',
         'cep' => 'CEP',
         'endereco' => 'endereço',

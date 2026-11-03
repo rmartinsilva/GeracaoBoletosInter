@@ -9,7 +9,7 @@ class CreateClienteDTO
 {
     public function __construct(
         public string $nome,
-        public string $email,
+        public ?string $email,
         public string $nome_contato,
         public ?TipoPessoa $tipo_pessoa = null,
         public ?string $cpf_cnpj = null,

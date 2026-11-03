@@ -30,7 +30,19 @@
         @csrf
         @method('PUT')
 
-        <label for="corpo_email" class="painel-label">
+        <label for="email_falha" class="painel-label">E-mail de falha</label>
+        <input type="email"
+               id="email_falha"
+               name="email_falha"
+               value="{{ old('email_falha', $emailFalha) }}"
+               maxlength="255"
+               placeholder="financeiro@empresa.com.br"
+               class="painel-input painel-focus-ring">
+        <p class="mt-2 text-sm painel-text-secondary">
+            Recebe um aviso quando a emissão do boleto falha. O mesmo motivo não é reenviado nas execuções seguintes.
+        </p>
+
+        <label for="corpo_email" class="painel-label mt-8">
             Texto do e-mail <span class="text-red-500">*</span>
         </label>
         <textarea id="corpo_email"
@@ -45,7 +57,7 @@
 
         <div class="flex items-center justify-end gap-4 mt-8 pt-6 painel-divider-top">
             <button type="submit" class="btn-primary inline-flex items-center">
-                Salvar texto
+                Salvar
             </button>
         </div>
     </form>

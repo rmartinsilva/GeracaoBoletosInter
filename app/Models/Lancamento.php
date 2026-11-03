@@ -27,6 +27,8 @@ class Lancamento extends Model
      */
     protected $fillable = [
         'assinatura_id',
+        'cliente_id',
+        'descricao',
         'competencia',
         'valor',
         'vencimento',
@@ -38,6 +40,7 @@ class Lancamento extends Model
         'nosso_numero',
         'email_enviado_em',
         'erro_emissao',
+        'falha_notificada_em',
     ];
 
     /**
@@ -54,6 +57,7 @@ class Lancamento extends Model
             'situacao' => SituacaoLancamento::class,
             'pago_em' => 'datetime',
             'email_enviado_em' => 'datetime',
+            'falha_notificada_em' => 'datetime',
         ];
     }
 
@@ -63,5 +67,13 @@ class Lancamento extends Model
     public function assinatura(): BelongsTo
     {
         return $this->belongsTo(Assinatura::class);
+    }
+
+    /**
+     * Cliente da cobrança avulsa. Nas assinaturas, o cliente vem da assinatura.
+     */
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class);
     }
 }
