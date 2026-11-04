@@ -1,6 +1,6 @@
-# Geração de Boletos Inter
+# Geração de Boletos - Banco Inter Empresas
 
-Aplicação web em Laravel para gerenciar clientes e cobranças mensais (assinaturas) e integrar com a API de Cobranças do Banco Inter (boleto com Pix).
+Aplicação web em Laravel para gerenciar clientes e cobranças mensais (assinaturas) e integrar com a API de Cobranças do Banco Inter Empresas (boleto com Pix).
 
 ## O que já funciona (e o que ainda não funciona)
 
