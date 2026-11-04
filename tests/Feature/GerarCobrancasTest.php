@@ -323,7 +323,33 @@ class GerarCobrancasTest extends TestCase
                 'valor' => 150,
             ]);
         });
-        $this->fingirBoletoPronto();
+        $codigos = [
+            '497f6eca-6276-4993-bfeb-53cbbbba6f08',
+            '11111111-6276-4993-bfeb-53cbbbba6f08',
+        ];
+        $indice = 0;
+        Http::fake(function (Request $request) use (&$indice, $codigos) {
+            if (str_ends_with($request->url(), '/oauth/v2/token')) {
+                return Http::response(['access_token' => 'token-teste', 'expires_in' => 3600]);
+            }
+
+            if ($request->method() === 'POST' && str_ends_with($request->url(), '/cobranca/v3/cobrancas')) {
+                $codigo = $codigos[$indice];
+                $indice++;
+
+                return Http::response(['codigoSolicitacao' => $codigo]);
+            }
+
+            if (str_ends_with($request->url(), '/pdf')) {
+                return Http::response(['pdf' => base64_encode('%PDF-1.4')]);
+            }
+
+            return Http::response([
+                'cobranca' => ['situacao' => 'A_RECEBER'],
+                'boleto' => ['linhaDigitavel' => '34191', 'nossoNumero' => '17'],
+                'pix' => ['pixCopiaECola' => '000201'],
+            ]);
+        });
 
         $this->artisan('cobrancas:gerar')
             ->expectsOutputToContain('Na fila: 2')
@@ -340,6 +366,66 @@ class GerarCobrancasTest extends TestCase
         $this->artisan('cobrancas:processar-fila')->assertOk();
         $this->assertSame(2, $this->postsDeEmissao());
         Mail::assertSentCount(2);
+    }
+
+    public function test_boleto_em_processamento_e_consultado_antes_da_proxima_emissao(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        Cliente::factory()->comPagador()->count(2)->create()->each(function (Cliente $cliente): void {
+            Assinatura::factory()->create([
+                'cliente_id' => $cliente->id,
+                'dia_vencimento' => 10,
+                'dia_geracao' => 5,
+                'data_inicio' => '2031-01-10',
+                'valor' => 150,
+            ]);
+        });
+        $consultas = 0;
+        Http::fake(function (Request $request) use (&$consultas) {
+            if (str_ends_with($request->url(), '/oauth/v2/token')) {
+                return Http::response(['access_token' => 'token-teste', 'expires_in' => 3600]);
+            }
+
+            if ($request->method() === 'POST' && str_ends_with($request->url(), '/cobranca/v3/cobrancas')) {
+                return Http::response(['codigoSolicitacao' => '497f6eca-6276-4993-bfeb-53cbbbba6f08']);
+            }
+
+            if (str_ends_with($request->url(), '/pdf')) {
+                return Http::response(['pdf' => base64_encode('%PDF-1.4')]);
+            }
+
+            $consultas++;
+
+            if ($consultas === 1) {
+                return Http::response([
+                    'cobranca' => ['situacao' => 'EM_PROCESSAMENTO'],
+                ]);
+            }
+
+            return Http::response([
+                'cobranca' => ['situacao' => 'A_RECEBER'],
+                'boleto' => ['linhaDigitavel' => '34191', 'nossoNumero' => '17'],
+                'pix' => ['pixCopiaECola' => '000201'],
+            ]);
+        });
+
+        $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')
+            ->expectsOutputToContain('Aguardando o boleto: 1')
+            ->assertOk();
+
+        $this->assertSame(1, $this->postsDeEmissao());
+        Mail::assertNothingSent();
+        $this->assertSame(1, Lancamento::query()->whereNotNull('codigo_solicitacao')->count());
+
+        $this->travel(1)->minutes();
+        $this->artisan('cobrancas:processar-fila')
+            ->expectsOutputToContain('E-mails enviados: 1')
+            ->assertOk();
+
+        $this->assertSame(1, $this->postsDeEmissao());
+        Mail::assertSentCount(1);
+        $this->assertNotNull(Lancamento::query()->whereNotNull('codigo_solicitacao')->sole()->email_enviado_em);
     }
 
     private function fingirBoletoPronto(): void

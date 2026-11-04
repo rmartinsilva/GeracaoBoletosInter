@@ -49,13 +49,13 @@ Controller → Service (`app/Services/`) → interface do repositório (`app/Rep
 
 ### Integração com o Banco Inter
 
-A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O cliente HTTP fica em `App\Services\Inter`. Quem grava o boleto e dispara o e-mail é o `EmissorDeCobrancas`. `php artisan cobrancas:gerar` (todo dia às 08:00, horário de Brasília) e o botão do dashboard só colocam as cobranças na fila. `php artisan cobrancas:processar-fila` roda a cada minuto, envia uma cobrança ao banco e, se o PDF ainda não existe, deixa a mesma cobrança para o minuto seguinte. Uma falha de emissão grava o motivo no lançamento e, se houver e-mail de falha configurado, avisa esse endereço uma vez por motivo.
+A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O cliente HTTP fica em `App\Services\Inter`. Quem grava o boleto e dispara o e-mail é o `EmissorDeCobrancas`. `php artisan cobrancas:gerar` (todo dia às 08:00, horário de Brasília) e o botão do dashboard só colocam as cobranças na fila. `php artisan cobrancas:processar-fila` roda a cada minuto e envia uma cobrança ao banco. Se o boleto ainda está em processamento, essa cobrança volta para o minuto seguinte e é consultada antes de emitir outra. O aviso `A_RECEBER` do webhook também a coloca na frente da fila, para baixar o PDF e enviar o e-mail. Uma falha de emissão grava o motivo no lançamento e, se houver e-mail de falha configurado, avisa esse endereço uma vez por motivo.
 
 - `config/inter.php` escolhe o ambiente por `INTER_AMBIENTE` (`sandbox` ou `producao`). A URL base, o OAuth em `/oauth/v2/token` e o certificado mTLS acompanham essa escolha. Com a configuração em cache, rode `php artisan config:clear` depois de trocar o ambiente.
 - O token dura 60 minutos, é reutilizado pelo cache e não é impresso. Os escopos padrão são `boleto-cobranca.read` e `boleto-cobranca.write`.
 - Havendo mais de uma conta na aplicação, `INTER_CONTA_CORRENTE` vai no cabeçalho `x-conta-corrente` (só números, com o dígito, sem zeros à esquerda).
 - `CobrancaInterService` emite, consulta, lista, resume, edita, cancela e baixa o PDF. `pagarSandbox()` simula o pagamento e só funciona no sandbox.
-- `WebhookCobrancaInterService` cadastra a URL HTTPS que recebe cobrança paga, cancelada ou expirada. O aviso chega em `POST /inter/cobrancas/webhook`: recebida ou marcada como recebida quita o lançamento; cancelada encerra o que ainda está em aberto. Cobrança desconhecida é ignorada, e o mesmo aviso não muda a data de um pagamento já gravado.
+- `WebhookCobrancaInterService` cadastra a URL HTTPS que recebe cobrança paga, cancelada ou expirada. O aviso chega em `POST /inter/cobrancas/webhook`: recebida ou marcada como recebida quita o lançamento; cancelada encerra o que ainda está em aberto. `A_RECEBER` coloca na frente da fila a cobrança que ainda não teve e-mail. Cobrança desconhecida é ignorada, e o mesmo aviso não muda a data de um pagamento já gravado.
 - `php artisan inter:verificar` autentica no ambiente configurado. Certificado e chave ficam fora do git, em `INTER_CERTIFICADO` e `INTER_CHAVE`.
 
 ### Autenticação do painel (guard `painel`)

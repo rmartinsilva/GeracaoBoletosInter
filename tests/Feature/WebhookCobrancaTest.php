@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\SituacaoLancamento;
+use App\Models\FilaEmissao;
 use App\Models\Lancamento;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -84,6 +85,25 @@ class WebhookCobrancaTest extends TestCase
 
         $this->avisar(self::CODIGO, 'EXPIRADO', '2026-11-04T14:30:00Z');
 
+        $this->assertSame(SituacaoLancamento::Aberto, $lancamento->fresh()->situacao);
+    }
+
+    public function test_a_receber_coloca_o_boleto_na_frente_da_fila(): void
+    {
+        $lancamento = Lancamento::factory()->create([
+            'codigo_solicitacao' => self::CODIGO,
+        ]);
+        FilaEmissao::query()->create([
+            'lancamento_id' => $lancamento->id,
+            'disponivel_em' => '2031-06-05 18:00:00',
+            'processado_em' => '2031-06-05 15:00:00',
+        ]);
+
+        $this->avisar(self::CODIGO, 'A_RECEBER', '2026-11-04T14:30:00Z');
+
+        $fila = FilaEmissao::query()->where('lancamento_id', $lancamento->id)->sole();
+        $this->assertNull($fila->processado_em);
+        $this->assertTrue($fila->disponivel_em->lessThanOrEqualTo(now()));
         $this->assertSame(SituacaoLancamento::Aberto, $lancamento->fresh()->situacao);
     }
 

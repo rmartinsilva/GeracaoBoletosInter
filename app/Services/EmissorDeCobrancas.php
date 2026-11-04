@@ -89,6 +89,8 @@ class EmissorDeCobrancas
             ->where('reservado_em', '<=', now()->subMinutes(2))
             ->update(['reservado_em' => null]);
 
+        $this->reabrirAguardandoBoleto();
+
         $item = $this->reservarProxima();
 
         if ($item === null) {
@@ -103,6 +105,16 @@ class EmissorDeCobrancas
         }
 
         if ($resumo['aguardando'] > 0) {
+            if ($lancamento !== null && $item->created_at !== null && $item->created_at->lte(now()->subHours(6))) {
+                $this->notificarFalha($lancamento, 'O boleto continuou em processamento no Banco Inter.');
+                $item->update([
+                    'reservado_em' => null,
+                    'processado_em' => now(),
+                ]);
+
+                return $resumo;
+            }
+
             $item->update([
                 'reservado_em' => null,
                 'disponivel_em' => now()->addMinute(),
@@ -163,15 +175,49 @@ class EmissorDeCobrancas
         return $horario->greaterThan(now()) ? $horario : now();
     }
 
+    /**
+     * Cobrança já aceita pelo banco e ainda sem e-mail volta para a fila,
+     * mesmo que a tentativa anterior tenha sido encerrada.
+     */
+    private function reabrirAguardandoBoleto(): void
+    {
+        foreach ($this->lancamentos->pendentesDeEmail() as $lancamento) {
+            if ($lancamento->erro_emissao !== null) {
+                continue;
+            }
+
+            $fila = FilaEmissao::query()->where('lancamento_id', $lancamento->id)->first();
+
+            if ($fila !== null && $fila->processado_em === null) {
+                continue;
+            }
+
+            FilaEmissao::query()->updateOrCreate(
+                ['lancamento_id' => $lancamento->id],
+                [
+                    'disponivel_em' => now(),
+                    'reservado_em' => null,
+                    'processado_em' => null,
+                ],
+            );
+        }
+    }
+
     private function reservarProxima(): ?FilaEmissao
     {
         return DB::transaction(function (): ?FilaEmissao {
             $item = FilaEmissao::query()
-                ->whereNull('processado_em')
-                ->whereNull('reservado_em')
-                ->where('disponivel_em', '<=', now())
-                ->orderBy('disponivel_em')
-                ->orderBy('id')
+                ->whereNull('fila_emissoes.processado_em')
+                ->whereNull('fila_emissoes.reservado_em')
+                ->where('fila_emissoes.disponivel_em', '<=', now())
+                ->orderByRaw('case when exists (
+                    select 1 from lancamentos
+                    where lancamentos.id = fila_emissoes.lancamento_id
+                      and lancamentos.codigo_solicitacao is not null
+                      and lancamentos.email_enviado_em is null
+                ) then 0 else 1 end')
+                ->orderBy('fila_emissoes.disponivel_em')
+                ->orderBy('fila_emissoes.id')
                 ->lockForUpdate()
                 ->first();
 
@@ -194,6 +240,11 @@ class EmissorDeCobrancas
     {
         $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0];
         $this->processar($lancamento, $resumo);
+
+        if ($resumo['aguardando'] > 0) {
+            $ignorado = ['enfileiradas' => 0, 'falhas' => 0];
+            $this->enfileirar($lancamento->refresh(), now()->addMinute(), $ignorado);
+        }
 
         return $resumo;
     }
@@ -254,7 +305,17 @@ class EmissorDeCobrancas
             }
 
             $this->concluir($lancamento, $resumo);
-        } catch (ExcecaoInter|RegraNegocioException $excecao) {
+        } catch (ExcecaoInter $excecao) {
+            if ($lancamento->codigo_solicitacao !== null) {
+                $this->lancamentos->registrarFalha($lancamento, null);
+                $resumo['aguardando']++;
+
+                return;
+            }
+
+            $this->notificarFalha($lancamento, $excecao->getMessage());
+            $resumo['falhas']++;
+        } catch (RegraNegocioException $excecao) {
             $this->notificarFalha($lancamento, $excecao->getMessage());
             $resumo['falhas']++;
         } catch (Throwable $excecao) {
@@ -292,6 +353,13 @@ class EmissorDeCobrancas
         if ($situacao === 'FALHA_EMISSAO') {
             $this->notificarFalha($lancamento, 'O Banco Inter recusou a emissão desta cobrança.');
             $resumo['falhas']++;
+
+            return;
+        }
+
+        if ($situacao === 'EM_PROCESSAMENTO') {
+            $this->lancamentos->registrarFalha($lancamento, null);
+            $resumo['aguardando']++;
 
             return;
         }

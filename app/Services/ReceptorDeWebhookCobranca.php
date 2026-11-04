@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\Inter\SituacaoCobranca;
 use App\Enums\SituacaoLancamento;
+use App\Models\FilaEmissao;
 use App\Models\Lancamento;
 use App\Repositories\Contracts\LancamentoRepositoryInterface;
 use Carbon\CarbonImmutable;
@@ -54,12 +55,23 @@ class ReceptorDeWebhookCobranca
 
         if ($situacao === SituacaoCobranca::Recebido->value || $situacao === SituacaoCobranca::MarcadoRecebido->value) {
             $this->receberPagamento($lancamento, $item);
+            $this->adiantarEnvio($lancamento);
 
             return;
         }
 
         if ($situacao === SituacaoCobranca::Cancelado->value && $lancamento->situacao === SituacaoLancamento::Aberto) {
             $this->lancamentos->cancelar($lancamento);
+
+            return;
+        }
+
+        if (in_array($situacao, [
+            SituacaoCobranca::AReceber->value,
+            SituacaoCobranca::Atrasado->value,
+            SituacaoCobranca::Protesto->value,
+        ], true)) {
+            $this->adiantarEnvio($lancamento);
         }
     }
 
@@ -115,5 +127,34 @@ class ReceptorDeWebhookCobranca
         } catch (Throwable) {
             return CarbonImmutable::now('UTC');
         }
+    }
+
+    /**
+     * O boleto já existe no banco. A fila baixa o PDF e envia o e-mail no próximo minuto.
+     */
+    private function adiantarEnvio(Lancamento $lancamento): void
+    {
+        if ($lancamento->codigo_solicitacao === null || $lancamento->email_enviado_em !== null) {
+            return;
+        }
+
+        if (! in_array($lancamento->situacao, [SituacaoLancamento::Aberto, SituacaoLancamento::Pago], true)) {
+            return;
+        }
+
+        $fila = FilaEmissao::query()->where('lancamento_id', $lancamento->id)->first();
+
+        if ($fila?->reservado_em !== null && $fila->reservado_em->greaterThan(now()->subMinutes(2))) {
+            return;
+        }
+
+        FilaEmissao::query()->updateOrCreate(
+            ['lancamento_id' => $lancamento->id],
+            [
+                'disponivel_em' => now(),
+                'reservado_em' => null,
+                'processado_em' => null,
+            ],
+        );
     }
 }
