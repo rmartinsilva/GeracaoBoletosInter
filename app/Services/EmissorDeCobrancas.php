@@ -32,6 +32,8 @@ class EmissorDeCobrancas
 {
     private const DIAS_AGENDA = 30;
 
+    private const ESPERA_PROCESSAMENTO_MINUTOS = 5;
+
     public function __construct(
         private AssinaturaRepositoryInterface $assinaturas,
         private LancamentoRepositoryInterface $lancamentos,
@@ -97,7 +99,7 @@ class EmissorDeCobrancas
             return null;
         }
 
-        $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0];
+        $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0, 'em_processamento' => false];
         $lancamento = $item->lancamento;
 
         if ($lancamento !== null) {
@@ -109,15 +111,21 @@ class EmissorDeCobrancas
                 $this->notificarFalha($lancamento, 'O boleto continuou em processamento no Banco Inter.');
                 $item->update([
                     'reservado_em' => null,
+                    'prioridade' => false,
                     'processado_em' => now(),
                 ]);
 
                 return $resumo;
             }
 
+            $esperarCincoMinutos = $resumo['em_processamento'] && $this->aindaHaEmissaoNova($item);
+
             $item->update([
                 'reservado_em' => null,
-                'disponivel_em' => now()->addMinute(),
+                'prioridade' => false,
+                'disponivel_em' => $esperarCincoMinutos
+                    ? now()->addMinutes(self::ESPERA_PROCESSAMENTO_MINUTOS)
+                    : now()->addMinute(),
             ]);
 
             return $resumo;
@@ -125,6 +133,7 @@ class EmissorDeCobrancas
 
         $item->update([
             'reservado_em' => null,
+            'prioridade' => false,
             'processado_em' => now(),
         ]);
 
@@ -150,6 +159,7 @@ class EmissorDeCobrancas
             ['lancamento_id' => $lancamento->id],
             [
                 'disponivel_em' => $quando,
+                'prioridade' => false,
                 'reservado_em' => null,
                 'processado_em' => null,
             ],
@@ -196,6 +206,7 @@ class EmissorDeCobrancas
                 ['lancamento_id' => $lancamento->id],
                 [
                     'disponivel_em' => now(),
+                    'prioridade' => false,
                     'reservado_em' => null,
                     'processado_em' => null,
                 ],
@@ -206,22 +217,15 @@ class EmissorDeCobrancas
     private function reservarProxima(): ?FilaEmissao
     {
         return DB::transaction(function (): ?FilaEmissao {
-            $item = FilaEmissao::query()
-                ->whereNull('fila_emissoes.processado_em')
-                ->whereNull('fila_emissoes.reservado_em')
-                ->where('fila_emissoes.disponivel_em', '<=', now())
-                ->orderByRaw('case when exists (
-                    select 1 from lancamentos
-                    where lancamentos.id = fila_emissoes.lancamento_id
-                      and lancamentos.codigo_solicitacao is not null
-                      and lancamentos.email_enviado_em is null
-                ) then 0 else 1 end')
-                ->orderBy('fila_emissoes.disponivel_em')
-                ->orderBy('fila_emissoes.id')
-                ->lockForUpdate()
-                ->first();
+            $escolhido = $this->escolherProxima();
 
-            if ($item === null) {
+            if ($escolhido === null) {
+                return null;
+            }
+
+            $item = FilaEmissao::query()->lockForUpdate()->find($escolhido->id);
+
+            if ($item === null || $item->processado_em !== null || $item->reservado_em !== null) {
                 return null;
             }
 
@@ -229,6 +233,49 @@ class EmissorDeCobrancas
 
             return $item->load('lancamento');
         });
+    }
+
+    /**
+     * Boleto que o banco já avisou como pronto fura a fila. Enquanto houver emissão nova,
+     * um boleto em processamento só é consultado a cada cinco minutos.
+     */
+    private function escolherProxima(): ?FilaEmissao
+    {
+        $devidas = FilaEmissao::query()
+            ->whereNull('processado_em')
+            ->whereNull('reservado_em')
+            ->where('disponivel_em', '<=', now())
+            ->orderBy('disponivel_em')
+            ->orderBy('id');
+
+        $pronta = (clone $devidas)->where('prioridade', true)->first();
+
+        if ($pronta !== null) {
+            return $pronta;
+        }
+
+        $nova = (clone $devidas)
+            ->whereHas('lancamento', fn ($consulta) => $consulta->whereNull('codigo_solicitacao'))
+            ->first();
+
+        $acompanhamento = (clone $devidas)
+            ->whereHas('lancamento', fn ($consulta) => $consulta->whereNotNull('codigo_solicitacao'))
+            ->first();
+
+        if ($nova !== null && $acompanhamento !== null && now()->minute % self::ESPERA_PROCESSAMENTO_MINUTOS === 0) {
+            return $acompanhamento;
+        }
+
+        return $nova ?? $acompanhamento;
+    }
+
+    private function aindaHaEmissaoNova(FilaEmissao $atual): bool
+    {
+        return FilaEmissao::query()
+            ->whereNull('processado_em')
+            ->whereKeyNot($atual->id)
+            ->whereHas('lancamento', fn ($consulta) => $consulta->whereNull('codigo_solicitacao'))
+            ->exists();
     }
 
     /**
@@ -309,6 +356,7 @@ class EmissorDeCobrancas
             if ($lancamento->codigo_solicitacao !== null) {
                 $this->lancamentos->registrarFalha($lancamento, null);
                 $resumo['aguardando']++;
+                $resumo['em_processamento'] = true;
 
                 return;
             }
@@ -360,6 +408,7 @@ class EmissorDeCobrancas
         if ($situacao === 'EM_PROCESSAMENTO') {
             $this->lancamentos->registrarFalha($lancamento, null);
             $resumo['aguardando']++;
+            $resumo['em_processamento'] = true;
 
             return;
         }

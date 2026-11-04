@@ -152,6 +152,7 @@ class ReceptorDeWebhookCobranca
             ['lancamento_id' => $lancamento->id],
             [
                 'disponivel_em' => now(),
+                'prioridade' => true,
                 'reservado_em' => null,
                 'processado_em' => null,
             ],

@@ -103,6 +103,7 @@ class WebhookCobrancaTest extends TestCase
 
         $fila = FilaEmissao::query()->where('lancamento_id', $lancamento->id)->sole();
         $this->assertNull($fila->processado_em);
+        $this->assertTrue($fila->prioridade);
         $this->assertTrue($fila->disponivel_em->lessThanOrEqualTo(now()));
         $this->assertSame(SituacaoLancamento::Aberto, $lancamento->fresh()->situacao);
     }

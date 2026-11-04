@@ -15,6 +15,7 @@ class FilaEmissao extends Model
     protected $fillable = [
         'lancamento_id',
         'disponivel_em',
+        'prioridade',
         'reservado_em',
         'processado_em',
     ];
@@ -26,6 +27,7 @@ class FilaEmissao extends Model
     {
         return [
             'disponivel_em' => 'datetime',
+            'prioridade' => 'boolean',
             'reservado_em' => 'datetime',
             'processado_em' => 'datetime',
         ];

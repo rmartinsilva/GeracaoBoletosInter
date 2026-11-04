@@ -368,9 +368,9 @@ class GerarCobrancasTest extends TestCase
         Mail::assertSentCount(2);
     }
 
-    public function test_boleto_em_processamento_e_consultado_antes_da_proxima_emissao(): void
+    public function test_boleto_em_processamento_nao_segura_a_proxima_emissao(): void
     {
-        $this->travelTo('2031-06-05 15:00:00');
+        $this->travelTo('2031-06-05 15:01:00');
         Cliente::factory()->comPagador()->count(2)->create()->each(function (Cliente $cliente): void {
             Assinatura::factory()->create([
                 'cliente_id' => $cliente->id,
@@ -380,32 +380,24 @@ class GerarCobrancasTest extends TestCase
                 'valor' => 150,
             ]);
         });
-        $consultas = 0;
-        Http::fake(function (Request $request) use (&$consultas) {
+        $posts = 0;
+        Http::fake(function (Request $request) use (&$posts) {
             if (str_ends_with($request->url(), '/oauth/v2/token')) {
                 return Http::response(['access_token' => 'token-teste', 'expires_in' => 3600]);
             }
 
             if ($request->method() === 'POST' && str_ends_with($request->url(), '/cobranca/v3/cobrancas')) {
-                return Http::response(['codigoSolicitacao' => '497f6eca-6276-4993-bfeb-53cbbbba6f08']);
+                $posts++;
+
+                return Http::response(['codigoSolicitacao' => sprintf('11111111-1111-1111-1111-11111111111%d', $posts)]);
             }
 
             if (str_ends_with($request->url(), '/pdf')) {
                 return Http::response(['pdf' => base64_encode('%PDF-1.4')]);
             }
 
-            $consultas++;
-
-            if ($consultas === 1) {
-                return Http::response([
-                    'cobranca' => ['situacao' => 'EM_PROCESSAMENTO'],
-                ]);
-            }
-
             return Http::response([
-                'cobranca' => ['situacao' => 'A_RECEBER'],
-                'boleto' => ['linhaDigitavel' => '34191', 'nossoNumero' => '17'],
-                'pix' => ['pixCopiaECola' => '000201'],
+                'cobranca' => ['situacao' => 'EM_PROCESSAMENTO'],
             ]);
         });
 
@@ -416,16 +408,120 @@ class GerarCobrancasTest extends TestCase
 
         $this->assertSame(1, $this->postsDeEmissao());
         Mail::assertNothingSent();
-        $this->assertSame(1, Lancamento::query()->whereNotNull('codigo_solicitacao')->count());
 
         $this->travel(1)->minutes();
+        $this->artisan('cobrancas:processar-fila')
+            ->expectsOutputToContain('Aguardando o boleto: 1')
+            ->assertOk();
+
+        $this->assertSame(2, $this->postsDeEmissao());
+        $this->assertSame(2, Lancamento::query()->whereNotNull('codigo_solicitacao')->count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_boleto_pronto_fura_a_fila_da_emissao(): void
+    {
+        $this->travelTo('2031-06-05 15:01:00');
+        $cliente = Cliente::factory()->comPagador()->create();
+        $assinatura = Assinatura::factory()->create([
+            'cliente_id' => $cliente->id,
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+            'valor' => 150,
+        ]);
+        $pronto = Lancamento::factory()->create([
+            'assinatura_id' => $assinatura->id,
+            'competencia' => '2031-06-01',
+            'vencimento' => '2031-06-10',
+            'valor' => 150,
+            'codigo_solicitacao' => self::CODIGO,
+        ]);
+        FilaEmissao::query()->create([
+            'lancamento_id' => $pronto->id,
+            'disponivel_em' => now(),
+            'prioridade' => true,
+        ]);
+        Assinatura::factory()->create([
+            'cliente_id' => Cliente::factory()->comPagador()->create()->id,
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+            'valor' => 80,
+        ]);
+        $this->fingirBoletoPronto();
+
+        $this->artisan('cobrancas:gerar')->assertOk();
         $this->artisan('cobrancas:processar-fila')
             ->expectsOutputToContain('E-mails enviados: 1')
             ->assertOk();
 
+        $this->assertSame(0, $this->postsDeEmissao());
+        $this->assertNotNull($pronto->fresh()->email_enviado_em);
+    }
+
+    public function test_a_cada_cinco_minutos_consulta_um_boleto_em_processamento(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        $cliente = Cliente::factory()->comPagador()->create();
+        $assinatura = Assinatura::factory()->create([
+            'cliente_id' => $cliente->id,
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+        ]);
+        $esperando = Lancamento::factory()->create([
+            'assinatura_id' => $assinatura->id,
+            'competencia' => '2031-06-01',
+            'vencimento' => '2031-06-10',
+            'codigo_solicitacao' => self::CODIGO,
+        ]);
+        $novo = Lancamento::factory()->create([
+            'assinatura_id' => Assinatura::factory()->create([
+                'cliente_id' => $cliente->id,
+                'dia_vencimento' => 10,
+                'dia_geracao' => 5,
+                'data_inicio' => '2031-01-10',
+            ])->id,
+            'competencia' => '2031-06-01',
+            'vencimento' => '2031-06-10',
+        ]);
+        FilaEmissao::query()->create([
+            'lancamento_id' => $esperando->id,
+            'disponivel_em' => now(),
+            'prioridade' => false,
+        ]);
+        FilaEmissao::query()->create([
+            'lancamento_id' => $novo->id,
+            'disponivel_em' => now(),
+            'prioridade' => false,
+        ]);
+        Http::fake(function (Request $request) {
+            if (str_ends_with($request->url(), '/oauth/v2/token')) {
+                return Http::response(['access_token' => 'token-teste', 'expires_in' => 3600]);
+            }
+
+            if ($request->method() === 'POST' && str_ends_with($request->url(), '/cobranca/v3/cobrancas')) {
+                return Http::response(['codigoSolicitacao' => '22222222-2222-2222-2222-222222222222']);
+            }
+
+            return Http::response([
+                'cobranca' => ['situacao' => 'EM_PROCESSAMENTO'],
+            ]);
+        });
+
+        $this->artisan('cobrancas:processar-fila')
+            ->expectsOutputToContain('Aguardando o boleto: 1')
+            ->assertOk();
+
+        $this->assertSame(0, $this->postsDeEmissao());
+        $this->assertNull($novo->fresh()->codigo_solicitacao);
+
+        $this->travel(1)->minutes();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
+
         $this->assertSame(1, $this->postsDeEmissao());
-        Mail::assertSentCount(1);
-        $this->assertNotNull(Lancamento::query()->whereNotNull('codigo_solicitacao')->sole()->email_enviado_em);
+        $this->assertNotNull($novo->fresh()->codigo_solicitacao);
     }
 
     private function fingirBoletoPronto(): void
