@@ -1,0 +1,140 @@
+:root {
+    --site-bg: #fafaf9;
+    --site-text: #292524;
+    --site-muted: #57534e;
+    --site-heading: #1c1917;
+    --site-line: #e7e5e4;
+    --site-footer: #78716c;
+    --site-accent: #4d7c0f;
+    --site-accent-hover: #3f6212;
+    --site-button: #1c1917;
+    --site-button-hover: #44403c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--site-bg);
+    color: var(--site-text);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.site {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+.site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 0;
+}
+
+.site-marca {
+    color: var(--site-heading);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-decoration: none;
+}
+
+.site-botao,
+.site-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    color: #fff;
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.site-botao {
+    background: var(--site-button);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.site-botao:hover {
+    background: var(--site-button-hover);
+}
+
+.site-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    padding: 4rem 0;
+}
+
+.site-hero {
+    max-width: 42rem;
+}
+
+.site-selo {
+    margin: 0;
+    color: var(--site-accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.site-hero h1 {
+    margin: 1rem 0 0;
+    color: var(--site-heading);
+    font-size: 2.25rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+
+.site-hero p {
+    margin: 1.5rem 0 0;
+    color: var(--site-muted);
+    font-size: 1.125rem;
+    line-height: 1.625;
+}
+
+.site-cta {
+    margin-top: 2.5rem;
+    background: var(--site-accent);
+    font-weight: 600;
+    padding: 0.75rem 1.25rem;
+}
+
+.site-cta:hover {
+    background: var(--site-accent-hover);
+}
+
+.site-footer {
+    border-top: 1px solid var(--site-line);
+    padding: 1.5rem 0;
+    color: var(--site-footer);
+    font-size: 0.875rem;
+}
+
+.site-footer a {
+    color: #44403c;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    color: var(--site-heading);
+}
+
+@media (min-width: 640px) {
+    .site-hero h1 {
+        font-size: 3rem;
+    }
+}

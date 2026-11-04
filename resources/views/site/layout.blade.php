@@ -5,26 +5,26 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Geração de Cobranças')</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ url('/assets/css/site.css') }}">
 </head>
-<body class="min-h-screen bg-stone-50 text-stone-800 antialiased">
-    <div class="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
-        <header class="flex items-center justify-between py-6">
-            <a href="{{ route('site.index') }}" class="text-sm font-semibold tracking-wide text-stone-900">
+<body>
+    <div class="site">
+        <header class="site-header">
+            <a href="{{ route('site.index') }}" class="site-marca">
                 Geração de Cobranças
             </a>
-            <a href="{{ route('login') }}" class="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700">
+            <a href="{{ route('login') }}" class="site-botao">
                 Painel
             </a>
         </header>
 
-        <main class="flex flex-1 items-center py-16">
+        <main class="site-main">
             @yield('conteudo')
         </main>
 
-        <footer class="border-t border-stone-200 py-6 text-sm text-stone-500">
+        <footer class="site-footer">
             © {{ $dataHora->agora()->year }}
-            <a href="https://www.usinaweb.com.br" class="font-medium text-stone-700 hover:text-stone-900" target="_blank" rel="noopener">UsinaWeb Tech Pro</a>
+            <a href="https://www.usinaweb.com.br" target="_blank" rel="noopener">UsinaWeb Tech Pro</a>
         </footer>
     </div>
 </body>

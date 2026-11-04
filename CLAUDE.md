@@ -15,7 +15,6 @@ Código de domínio, textos da interface, mensagens de validação e documentaç
 ```bash
 # Primeira instalação
 composer install
-npm install
 cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite   # o .env.example usa SQLite por padrão
@@ -28,7 +27,7 @@ php artisan db:seed
 # Recriar o banco do zero
 php artisan migrate:fresh --seed
 
-# Desenvolvimento: php artisan serve + queue:listen + pail + vite juntos
+# Desenvolvimento: php artisan serve + queue:listen + pail juntos
 composer run dev
 
 # Testes (sempre SQLite em memória, ver phpunit.xml)
@@ -77,10 +76,10 @@ A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O client
 - Essa chave só é preenchida por `AutenticacaoController::principal()` (o dashboard em `/painel`) e fica na sessão até o logout. Por isso, mudanças nos grupos de um usuário só valem no próximo login dele.
 - Nos controllers, use `checkPermissionOrFail('<chave>')` ou `hasPermission()`. As views verificam `in_array('<chave>', $listaPermissoes)` e o layout do painel monta o menu lateral com essa lista, então toda view do painel precisa receber `usuario` e `listaPermissoes` do controller (veja `UsuarioController`).
 
-### Front-end: dois pipelines separados
+### Front-end
 
-- **Site público** (`resources/views/site/`, layout `site.layout`): Vite + Tailwind 4 via `@vite(['resources/css/app.css', 'resources/js/app.js'])`. Precisa de `npm run dev` ou `npm run build`.
-- **Painel** (`resources/views/template/painel.blade.php` e `resources/views/painel/`): Tailwind via CDN mais os arquivos estáticos escritos à mão `public/assets/css/app.css`, `public/assets/css/painel.css` e `public/assets/js/app.js`, carregados com `url()`. O Vite não processa esses arquivos; edite-os diretamente. As páginas do painel fazem `@extends('template.painel')` e preenchem `@section('conteudo')`.
+- **Site público** (`resources/views/site/`, layout `site.layout`): HTML com o CSS estático `public/assets/css/site.css`, carregado com `url()`. Não há etapa de build.
+- **Painel** (`resources/views/template/painel.blade.php` e `resources/views/painel/`): Tailwind via CDN mais os arquivos estáticos escritos à mão `public/assets/css/app.css`, `public/assets/css/painel.css` e `public/assets/js/app.js`, carregados com `url()`. Edite-os diretamente. As páginas do painel fazem `@extends('template.painel')` e preenchem `@section('conteudo')`.
 - O tema claro/escuro de cada usuário fica em `configuracao_usuario` (`ConfiguracaoUsuario`, criado sob demanda por `Usuario::getConfiguracao()`). A troca é feita via AJAX (`POST /painel/configuracao/toggle-tema`) e aplicada por `body[data-tema]` e pelas regras `.tema-escuro` do `painel.css`. Detalhes em `SISTEMA-TEMAS.md`.
 
 ### Datas e horas
@@ -144,7 +143,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - Do not change the application's dependencies without approval.
 
 ## Frontend Bundling
-- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
+- There is no frontend build step. The public site uses `public/assets/css/site.css` and the panel uses the Tailwind CDN plus `public/assets/`. Edit those files directly.
 
 ## Replies
 - Be concise in your explanations - focus on what's important rather than explaining obvious details.
@@ -263,10 +262,6 @@ protected function isAccessible(User $user, ?string $path = null): bool
 - When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
 - Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
 - When creating tests, make use of `php artisan make:test [options] <name>` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
-
-### Vite Error
-- If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `npm run build` or ask the user to run `npm run dev` or `composer run dev`.
-
 
 === laravel/v12 rules ===
 

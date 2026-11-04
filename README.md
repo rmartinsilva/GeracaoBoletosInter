@@ -18,17 +18,16 @@ A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP 
 
 - PHP 8.4
 - Laravel 13
-- Tailwind CSS 4 (site público via Vite; painel via CDN e arquivos estáticos próprios)
+- Tailwind CSS pelo CDN no painel; a landing page usa CSS estático em `public/assets/css/site.css`
 - SQLite (padrão do `.env.example`)
 - PHPUnit 12
 
 ## Requisitos e instalação
 
-Requisitos: PHP 8.4, Composer e Node.js.
+Requisitos: PHP 8.4 e Composer.
 
 ```bash
 composer install
-npm install
 cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite
@@ -37,7 +36,7 @@ php artisan migrate --seed
 
 O `.env.example` usa SQLite por padrão. Para outro banco, ajuste as variáveis `DB_*` do `.env`.
 
-Para subir tudo em desenvolvimento (servidor, filas, logs e Vite juntos):
+Para subir o servidor, a fila e os logs juntos:
 
 ```bash
 composer run dev
