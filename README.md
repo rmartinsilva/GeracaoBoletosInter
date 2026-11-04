@@ -9,7 +9,7 @@ O painel já cobre o cadastro e o acompanhamento das cobranças:
 - Painel administrativo em `/painel` com login por `login` (não por e-mail), grupos de usuário e permissões por chave (`usuario_*` e `cliente_*`).
 - Cadastro de usuários e de clientes (nome, e-mail, contato e os dados do pagador: tipo de pessoa, CPF ou CNPJ, endereço, cidade, UF e CEP).
 - Cadastro de assinaturas: descrição, valor, periodicidade (mensal ou anual), dia de vencimento, dia de geração, data de início e de fim, e situação (ativa ou encerrada). A cobrança avulsa fica na ficha do cliente e emite o boleto na hora, só com descrição, valor e vencimento.
-- Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento.
+- Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento. Com o webhook cadastrado, o Banco Inter também quita o lançamento quando a cobrança é recebida.
 - Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
 A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. Quem dispara isso no dia a dia é o comando `php artisan cobrancas:gerar`. O retorno do banco entra em `POST /inter/cobrancas/webhook` e quita o lançamento quando a cobrança é recebida.
@@ -69,6 +69,7 @@ Rotas principais:
 - `/painel/usuarios`, `/painel/clientes` — cadastros (protegidos por permissão).
 - `/painel/cobranca/email` — texto do e-mail enviado com o boleto (quem tem permissão `cliente_editar`).
 - `/painel/clientes/{cliente}/assinaturas/...` — assinaturas e lançamentos do cliente.
+- `POST /inter/cobrancas/webhook` — aviso do Banco Inter (paga, cancelada ou expirada). Não pede login.
 
 ## Fuso horário
 
@@ -121,7 +122,50 @@ Detalhes importantes:
 php artisan inter:verificar
 ```
 
-O comando autentica no ambiente configurado em `INTER_AMBIENTE` e informa o resultado. Ele não imprime o token nem o segredo.
+O comando autentica no ambiente configurado em `INTER_AMBIENTE` e informa o resultado. Ele não imprime o token nem o segredo. A primeira linha precisa ser o ambiente em que você vai cadastrar o webhook (`Ambiente: Sandbox` ou `Ambiente: Produção`).
+
+### Webhook de pagamento
+
+O Internet Banking não tem campo para a URL do webhook. O arquivo que ele oferece para baixar é o certificado `ca.crt`, a chave pública com que o Inter se identifica ao chamar o seu servidor. Esta aplicação recebe o aviso por HTTPS e não usa esse arquivo. A URL é cadastrada na API, com o mesmo certificado, Client ID e Client Secret que emitem o boleto. Referência: <https://developers.inter.co/references/cobranca-bolepix#tag/Webhook>.
+
+Sandbox e produção são cadastros separados. Rode os comandos no servidor daquele ambiente, depois que o site estiver publicado em HTTPS. O caminho é fixo: `/inter/cobrancas/webhook`.
+
+1. Confirme que o endereço já responde, trocando o domínio pelo seu:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  -H "Content-Type: application/json" \
+  -d "[]" \
+  https://boletos.exemplo.com.br/inter/cobrancas/webhook
+```
+
+A resposta tem de ser `200`. Se for `404`, publique esta versão antes de cadastrar. O Inter repete o aviso em 20, 30, 60 e 120 minutos quando o endereço não responde com sucesso.
+
+2. Confirme o ambiente. Pare se não for o da integração que emite os boletos:
+
+```bash
+php artisan inter:verificar
+```
+
+3. Cadastre a URL. O `PUT` da API usa o escopo `boleto-cobranca.write`, que já está em `INTER_ESCOPOS`:
+
+```bash
+php artisan tinker --execute="app(\App\Services\Inter\Contracts\WebhookCobrancaInterInterface::class)->cadastrar('https://boletos.exemplo.com.br/inter/cobrancas/webhook');"
+```
+
+O comando não imprime nada quando o Inter aceita (resposta `204`).
+
+4. Confira o que ficou gravado:
+
+```bash
+php artisan tinker --execute="dump(app(\App\Services\Inter\Contracts\WebhookCobrancaInterInterface::class)->obter());"
+```
+
+O `webhookUrl` tem de ser exatamente a URL do passo 3. `criacao` e `atualizacao` vêm no horário de Brasília.
+
+A partir daí, o Inter avisa cobrança recebida, cancelada ou expirada. Recebida, ou marcada como recebida, quita o lançamento na data e hora do aviso. Cancelada encerra o que ainda está em aberto e não desfaz um pagamento já gravado. Expirada deixa o lançamento em aberto. O mesmo aviso não troca a data de um pagamento. Cobrança que o sistema não encontra é ignorada. Boleto pago antes desse cadastro não é reenviado.
+
+Cadastrar de novo substitui a URL anterior. Há uma URL por integração.
 
 ### Emissão diária
 
