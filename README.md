@@ -44,13 +44,13 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-Para subir o servidor, a fila e os logs juntos:
+Para subir a aplicação:
 
 ```bash
-composer run dev
+php artisan serve
 ```
 
-O site público fica em `http://localhost:8000` e o painel em `http://localhost:8000/painel`.
+O site público fica em `http://localhost:8000` e o painel em `http://localhost:8000/painel`. O CSS já está em `public/assets/`; a página abre sem compilação de front-end. A fila, quando for processar e-mails, sobe com `php artisan queue:listen --tries=1`.
 
 ## Acesso ao painel
 
@@ -130,6 +130,8 @@ O Internet Banking não tem campo para a URL do webhook. O arquivo que ele ofere
 
 Sandbox e produção são cadastros separados. Rode os comandos no servidor daquele ambiente, depois que o site estiver publicado em HTTPS. O caminho é fixo: `/inter/cobrancas/webhook`.
 
+> **`boletos.exemplo.com.br` não é um endereço real.** É só um exemplo. Nos comandos abaixo, troque pelo domínio em que o **seu** sistema está publicado, como `https://cobrancas.suaempresa.com.br`. O trecho `/inter/cobrancas/webhook` fica igual. Se cadastrar o exemplo, o Banco Inter vai avisar um site que não é o seu.
+
 1. Confirme que o endereço já responde, trocando o domínio pelo seu:
 
 ```bash
@@ -147,7 +149,7 @@ A resposta tem de ser `200`. Se for `404`, publique esta versão antes de cadast
 php artisan inter:verificar
 ```
 
-3. Cadastre a URL. O `PUT` da API usa o escopo `boleto-cobranca.write`, que já está em `INTER_ESCOPOS`:
+3. Cadastre a URL. Troque `boletos.exemplo.com.br` pelo seu domínio antes de rodar. O `PUT` da API usa o escopo `boleto-cobranca.write`, que já está em `INTER_ESCOPOS`:
 
 ```bash
 php artisan tinker --execute="app(\App\Services\Inter\Contracts\WebhookCobrancaInterInterface::class)->cadastrar('https://boletos.exemplo.com.br/inter/cobrancas/webhook');"
