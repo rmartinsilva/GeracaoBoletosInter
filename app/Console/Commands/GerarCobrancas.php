@@ -11,7 +11,7 @@ class GerarCobrancas extends Command
 {
     protected $signature = 'cobrancas:gerar';
 
-    protected $description = 'Emite os boletos do dia e envia o e-mail quando o Banco Inter devolve o PDF';
+    protected $description = 'Coloca na fila os boletos do dia e os que ainda precisam de e-mail';
 
     public function handle(): int
     {
@@ -30,9 +30,7 @@ class GerarCobrancas extends Command
             return self::FAILURE;
         }
 
-        $this->line('Emitidas: '.$resumo['emitidas']);
-        $this->line('E-mails enviados: '.$resumo['enviadas']);
-        $this->line('Aguardando o boleto: '.$resumo['aguardando']);
+        $this->line('Na fila: '.$resumo['enfileiradas']);
         $this->line('Falhas: '.$resumo['falhas']);
 
         return self::SUCCESS;

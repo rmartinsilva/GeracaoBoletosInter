@@ -37,9 +37,9 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h3 class="text-lg font-bold painel-text-primary">Cobranças do dia</h3>
-                    <p class="painel-text-secondary mt-1">A rotina automática roda todo dia às 08:00. Gere agora se o banco ficou indisponível ou se alguma cobrança ficou sem boleto.</p>
+                    <p class="painel-text-secondary mt-1">A rotina automática roda todo dia às 08:00 e coloca as cobranças na fila. O banco recebe uma a cada minuto. Gere agora se o banco ficou indisponível ou se alguma cobrança ficou sem boleto.</p>
                 </div>
-                <form method="POST" action="{{ route('cobrancas.gerar') }}" onsubmit="if (!confirm('Gerar as cobranças agora? Isso emite os boletos do dia e retoma os que ficaram sem e-mail.')) { return false; } this.querySelector('button').disabled = true;">
+                <form method="POST" action="{{ route('cobrancas.gerar') }}" onsubmit="if (!confirm('Colocar as cobranças do dia na fila? O banco recebe uma a cada minuto, e as que ficaram sem e-mail entram de novo.')) { return false; } this.querySelector('button').disabled = true;">
                     @csrf
                     <button type="submit" class="btn-primary inline-flex items-center justify-center whitespace-nowrap">Gerar cobranças agora</button>
                 </form>

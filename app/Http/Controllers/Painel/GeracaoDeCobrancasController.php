@@ -46,17 +46,19 @@ class GeracaoDeCobrancasController extends PainelController
     }
 
     /**
-     * @param  array{emitidas: int, enviadas: int, aguardando: int, falhas: int}  $resumo
+     * @param  array{enfileiradas: int, falhas: int}  $resumo
      */
     private function mensagem(array $resumo): string
     {
-        return sprintf(
-            'Rotina concluída. Emitidas: %d. E-mails enviados: %d. Aguardando o boleto: %d. Falhas: %d.',
-            $resumo['emitidas'],
-            $resumo['enviadas'],
-            $resumo['aguardando'],
-            $resumo['falhas'],
-        );
+        if ($resumo['enfileiradas'] === 0) {
+            return 'Nenhuma cobrança entrou na fila.';
+        }
+
+        $quantidade = $resumo['enfileiradas'] === 1
+            ? '1 cobrança entrou na fila.'
+            : $resumo['enfileiradas'].' cobranças entraram na fila.';
+
+        return $quantidade.' O banco recebe uma a cada minuto.';
     }
 
     private function excecaoInter(Throwable $excecao): ?ExcecaoInter

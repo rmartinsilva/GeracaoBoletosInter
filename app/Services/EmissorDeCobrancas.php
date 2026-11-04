@@ -10,11 +10,14 @@ use App\Mail\FalhaCobranca;
 use App\Models\Assinatura;
 use App\Models\Cliente;
 use App\Models\ConfiguracaoCobranca;
+use App\Models\FilaEmissao;
 use App\Models\Lancamento;
 use App\Repositories\Contracts\AssinaturaRepositoryInterface;
 use App\Repositories\Contracts\LancamentoRepositoryInterface;
 use App\Services\Inter\Contracts\CobrancaInterInterface;
 use App\Services\Inter\ExcecaoInter;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -23,6 +26,7 @@ use Throwable;
  * No dia de geração emite o boleto da assinatura e, assim que o Inter devolve o PDF, envia o e-mail.
  * A emissão é assíncrona: uma cobrança pedida hoje pode só ter boleto na próxima execução.
  * Cobrança de assinatura que já falhou é tentada de novo em qualquer dia.
+ * O lote não chama o banco de uma vez: cada cobrança entra na fila e sai uma por minuto.
  */
 class EmissorDeCobrancas
 {
@@ -38,52 +42,147 @@ class EmissorDeCobrancas
     ) {}
 
     /**
-     * @return array{emitidas: int, enviadas: int, aguardando: int, falhas: int}
+     * @return array{enfileiradas: int, falhas: int}
      */
     public function executar(): array
     {
-        $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0];
+        $resumo = ['enfileiradas' => 0, 'falhas' => 0];
         $hoje = $this->dataHora->agora()->toDateString();
         $vistos = [];
+        $quando = $this->proximoHorarioDaFila();
 
         foreach ($this->assinaturas->listarAtivas() as $assinatura) {
             $lancamento = $this->lancamentoDoDia($assinatura, $hoje, $resumo);
 
-            if ($lancamento === null) {
+            if ($lancamento === null || isset($vistos[$lancamento->id])) {
                 continue;
             }
 
             $vistos[$lancamento->id] = true;
-            $this->processar($lancamento, $resumo);
+            $quando = $this->enfileirar($lancamento, $quando, $resumo);
         }
 
-        foreach ($this->lancamentos->pendentesDeEmail() as $lancamento) {
-            if (isset($vistos[$lancamento->id])) {
-                continue;
+        foreach ([$this->lancamentos->pendentesDeEmail(), $this->lancamentos->avulsosEmAberto(), $this->lancamentos->assinaturasComFalhaDeEmissao()] as $pendencias) {
+            foreach ($pendencias as $lancamento) {
+                if (isset($vistos[$lancamento->id])) {
+                    continue;
+                }
+
+                $vistos[$lancamento->id] = true;
+                $quando = $this->enfileirar($lancamento, $quando, $resumo);
             }
-
-            $vistos[$lancamento->id] = true;
-            $this->processar($lancamento, $resumo);
-        }
-
-        foreach ($this->lancamentos->avulsosEmAberto() as $lancamento) {
-            if (isset($vistos[$lancamento->id])) {
-                continue;
-            }
-
-            $vistos[$lancamento->id] = true;
-            $this->processar($lancamento, $resumo);
-        }
-
-        foreach ($this->lancamentos->assinaturasComFalhaDeEmissao() as $lancamento) {
-            if (isset($vistos[$lancamento->id])) {
-                continue;
-            }
-
-            $this->processar($lancamento, $resumo);
         }
 
         return $resumo;
+    }
+
+    /**
+     * Envia a próxima cobrança cujo horário já chegou. Null quando a fila não tem nada pronto.
+     *
+     * @return array{emitidas: int, enviadas: int, aguardando: int, falhas: int}|null
+     */
+    public function processarProxima(): ?array
+    {
+        FilaEmissao::query()
+            ->whereNull('processado_em')
+            ->whereNotNull('reservado_em')
+            ->where('reservado_em', '<=', now()->subMinutes(2))
+            ->update(['reservado_em' => null]);
+
+        $item = $this->reservarProxima();
+
+        if ($item === null) {
+            return null;
+        }
+
+        $resumo = ['emitidas' => 0, 'enviadas' => 0, 'aguardando' => 0, 'falhas' => 0];
+        $lancamento = $item->lancamento;
+
+        if ($lancamento !== null) {
+            $this->processar($lancamento, $resumo);
+        }
+
+        if ($resumo['aguardando'] > 0) {
+            $item->update([
+                'reservado_em' => null,
+                'disponivel_em' => now()->addMinute(),
+            ]);
+
+            return $resumo;
+        }
+
+        $item->update([
+            'reservado_em' => null,
+            'processado_em' => now(),
+        ]);
+
+        return $resumo;
+    }
+
+    /**
+     * @param  array{enfileiradas: int, falhas: int}  $resumo
+     */
+    private function enfileirar(Lancamento $lancamento, Carbon $quando, array &$resumo): Carbon
+    {
+        if ($lancamento->situacao !== SituacaoLancamento::Aberto || $lancamento->email_enviado_em !== null) {
+            return $quando;
+        }
+
+        $existente = FilaEmissao::query()->where('lancamento_id', $lancamento->id)->first();
+
+        if ($existente !== null && $existente->processado_em === null) {
+            return $quando;
+        }
+
+        FilaEmissao::query()->updateOrCreate(
+            ['lancamento_id' => $lancamento->id],
+            [
+                'disponivel_em' => $quando,
+                'reservado_em' => null,
+                'processado_em' => null,
+            ],
+        );
+
+        $resumo['enfileiradas']++;
+
+        return $quando->copy()->addMinute();
+    }
+
+    private function proximoHorarioDaFila(): Carbon
+    {
+        $ultimo = FilaEmissao::query()
+            ->whereNull('processado_em')
+            ->max('disponivel_em');
+
+        if (! is_string($ultimo) && ! $ultimo instanceof Carbon) {
+            return now();
+        }
+
+        $horario = Carbon::parse($ultimo)->addMinute();
+
+        return $horario->greaterThan(now()) ? $horario : now();
+    }
+
+    private function reservarProxima(): ?FilaEmissao
+    {
+        return DB::transaction(function (): ?FilaEmissao {
+            $item = FilaEmissao::query()
+                ->whereNull('processado_em')
+                ->whereNull('reservado_em')
+                ->where('disponivel_em', '<=', now())
+                ->orderBy('disponivel_em')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($item === null) {
+                return null;
+            }
+
+            $item->update(['reservado_em' => now()]);
+
+            return $item->load('lancamento');
+        });
     }
 
     /**
@@ -100,7 +199,7 @@ class EmissorDeCobrancas
     }
 
     /**
-     * @param  array{emitidas: int, enviadas: int, aguardando: int, falhas: int}  $resumo
+     * @param  array{enfileiradas: int, falhas: int}  $resumo
      */
     private function lancamentoDoDia(Assinatura $assinatura, string $hoje, array &$resumo): ?Lancamento
     {

@@ -7,6 +7,7 @@ use App\Mail\FalhaCobranca;
 use App\Models\Assinatura;
 use App\Models\Cliente;
 use App\Models\ConfiguracaoCobranca;
+use App\Models\FilaEmissao;
 use App\Models\Lancamento;
 use App\Services\Inter\ConfiguracaoInter;
 use Illuminate\Console\Scheduling\Schedule;
@@ -100,6 +101,10 @@ class GerarCobrancasTest extends TestCase
         ]);
 
         $this->artisan('cobrancas:gerar')
+            ->expectsOutputToContain('Na fila: 1')
+            ->assertOk();
+
+        $this->artisan('cobrancas:processar-fila')
             ->expectsOutputToContain('Emitidas: 1')
             ->expectsOutputToContain('E-mails enviados: 1')
             ->assertOk();
@@ -134,6 +139,7 @@ class GerarCobrancasTest extends TestCase
         });
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
         Mail::assertSentCount(1);
         $this->assertSame(1, $this->postsDeEmissao());
     }
@@ -157,6 +163,7 @@ class GerarCobrancasTest extends TestCase
         $this->fingirBoletoPronto();
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         Mail::assertSent(CobrancaEmitida::class, function (CobrancaEmitida $mail): bool {
             return $mail->hasTo('financeiro@paoquente.com.br')
@@ -182,6 +189,7 @@ class GerarCobrancasTest extends TestCase
         $this->fingirBoletoPronto();
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         Mail::assertSent(CobrancaEmitida::class, function (CobrancaEmitida $mail): bool {
             return $mail->hasTo('financeiro@paoquente.com.br')
@@ -200,6 +208,9 @@ class GerarCobrancasTest extends TestCase
         ]);
 
         $this->artisan('cobrancas:gerar')
+            ->expectsOutputToContain('Na fila: 1')
+            ->assertOk();
+        $this->artisan('cobrancas:processar-fila')
             ->expectsOutputToContain('Falhas: 1')
             ->assertOk();
 
@@ -225,6 +236,7 @@ class GerarCobrancasTest extends TestCase
         ]);
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         $lancamento = Lancamento::query()->sole();
         $this->assertNotNull($lancamento->falha_notificada_em);
@@ -237,6 +249,7 @@ class GerarCobrancasTest extends TestCase
         });
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
         Mail::assertSentCount(1);
     }
 
@@ -270,6 +283,9 @@ class GerarCobrancasTest extends TestCase
         ]);
 
         $this->artisan('cobrancas:gerar')
+            ->expectsOutputToContain('Na fila: 1')
+            ->assertOk();
+        $this->artisan('cobrancas:processar-fila')
             ->expectsOutputToContain('Emitidas: 0')
             ->expectsOutputToContain('E-mails enviados: 1')
             ->assertOk();
@@ -286,6 +302,44 @@ class GerarCobrancasTest extends TestCase
         $this->assertNotNull($evento);
         $this->assertSame('0 8 * * *', $evento->expression);
         $this->assertSame('America/Sao_Paulo', $evento->timezone);
+
+        $fila = collect(app(Schedule::class)->events())
+            ->first(fn ($evento) => str_contains((string) $evento->command, 'cobrancas:processar-fila'));
+
+        $this->assertNotNull($fila);
+        $this->assertSame('* * * * *', $fila->expression);
+        $this->assertSame('America/Sao_Paulo', $fila->timezone);
+    }
+
+    public function test_lote_sai_uma_cobranca_por_minuto(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        Cliente::factory()->comPagador()->count(2)->create()->each(function (Cliente $cliente): void {
+            Assinatura::factory()->create([
+                'cliente_id' => $cliente->id,
+                'dia_vencimento' => 10,
+                'dia_geracao' => 5,
+                'data_inicio' => '2031-01-10',
+                'valor' => 150,
+            ]);
+        });
+        $this->fingirBoletoPronto();
+
+        $this->artisan('cobrancas:gerar')
+            ->expectsOutputToContain('Na fila: 2')
+            ->assertOk();
+
+        $horarios = FilaEmissao::query()->orderBy('disponivel_em')->pluck('disponivel_em');
+        $this->assertCount(2, $horarios);
+        $this->assertEquals(60, (int) abs($horarios[0]->diffInSeconds($horarios[1])));
+
+        $this->artisan('cobrancas:processar-fila')->assertOk();
+        $this->assertSame(1, $this->postsDeEmissao());
+
+        $this->travel(1)->minutes();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
+        $this->assertSame(2, $this->postsDeEmissao());
+        Mail::assertSentCount(2);
     }
 
     private function fingirBoletoPronto(): void

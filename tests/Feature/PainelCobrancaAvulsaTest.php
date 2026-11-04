@@ -173,6 +173,7 @@ class PainelCobrancaAvulsaTest extends TestCase
         ]);
 
         $this->artisan('cobrancas:gerar')->assertOk();
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         $lancamento->refresh();
         $this->assertSame(self::CODIGO, $lancamento->codigo_solicitacao);

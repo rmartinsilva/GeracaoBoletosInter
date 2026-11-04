@@ -116,7 +116,9 @@ class PainelGeracaoCobrancaTest extends TestCase
 
         $this->comoAdmin()->post(route('cobrancas.gerar'))
             ->assertRedirect(route('painel.dashboard'))
-            ->assertSessionHas('success', 'Rotina concluída. Emitidas: 1. E-mails enviados: 1. Aguardando o boleto: 0. Falhas: 0.');
+            ->assertSessionHas('success', '1 cobrança entrou na fila. O banco recebe uma a cada minuto.');
+
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         $lancamento = Lancamento::query()->sole();
         $this->assertSame(self::CODIGO, $lancamento->codigo_solicitacao);
@@ -148,7 +150,9 @@ class PainelGeracaoCobrancaTest extends TestCase
 
         $this->comoAdmin()->post(route('cobrancas.gerar'))
             ->assertRedirect(route('painel.dashboard'))
-            ->assertSessionHas('success', 'Rotina concluída. Emitidas: 1. E-mails enviados: 1. Aguardando o boleto: 0. Falhas: 0.');
+            ->assertSessionHas('success', '1 cobrança entrou na fila. O banco recebe uma a cada minuto.');
+
+        $this->artisan('cobrancas:processar-fila')->assertOk();
 
         $lancamento = Lancamento::query()->sole();
         $this->assertSame(self::CODIGO, $lancamento->codigo_solicitacao);
@@ -172,7 +176,7 @@ class PainelGeracaoCobrancaTest extends TestCase
 
         $this->comoAdmin()->post(route('cobrancas.gerar'))
             ->assertRedirect(route('painel.dashboard'))
-            ->assertSessionHas('success', 'Rotina concluída. Emitidas: 0. E-mails enviados: 0. Aguardando o boleto: 0. Falhas: 0.');
+            ->assertSessionHas('success', 'Nenhuma cobrança entrou na fila.');
 
         $this->assertNull(Lancamento::query()->sole()->codigo_solicitacao);
         Http::assertNothingSent();

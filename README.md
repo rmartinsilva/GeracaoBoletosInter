@@ -12,7 +12,7 @@ O painel já cobre o cadastro e o acompanhamento das cobranças:
 - Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento. Com o webhook cadastrado, o Banco Inter também quita o lançamento quando a cobrança é recebida.
 - Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
-A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. Quem dispara isso no dia a dia é o comando `php artisan cobrancas:gerar`. O retorno do banco entra em `POST /inter/cobrancas/webhook` e quita o lançamento quando a cobrança é recebida.
+A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. No dia a dia, `php artisan cobrancas:gerar` coloca o lote na fila e `php artisan cobrancas:processar-fila` envia uma cobrança por minuto. O retorno do banco entra em `POST /inter/cobrancas/webhook` e quita o lançamento quando a cobrança é recebida.
 
 ## Tecnologias
 
@@ -175,11 +175,11 @@ Cadastrar de novo substitui a URL anterior. Há uma URL por integração.
 php artisan cobrancas:gerar
 ```
 
-No dia de geração da assinatura, o comando pede o boleto ao Inter. A emissão é assíncrona: se o PDF ainda não existe, a próxima execução consulta de novo e só então envia o e-mail, com o PDF em anexo. Não emite a mesma cobrança duas vezes.
+No dia de geração da assinatura, o comando coloca o boleto na fila. `php artisan cobrancas:processar-fila` roda a cada minuto e manda uma cobrança por vez ao Inter, para um lote de 20, 30 ou 50 não sair junto. A emissão é assíncrona: se o PDF ainda não existe, a mesma cobrança volta para o minuto seguinte e o e-mail, com o PDF em anexo, só sai quando o boleto fica pronto. Não emite a mesma cobrança duas vezes.
 
 Mensal e anual precisam do dia de geração. Se esse dia for posterior ao vencimento, o boleto sai no mês anterior. O dia 31 acompanha o último dia do mês. A cobrança avulsa não entra nessa rotina: na ficha do cliente, o boleto é emitido ao salvar, com a data de vencimento informada. Sem CPF ou CNPJ e endereço completo no cliente, o lançamento fica com o erro e o banco não é chamado. Se o campo "E-mail de falha" estiver preenchido em `/painel/cobranca/email`, esse endereço recebe um aviso. O mesmo motivo não é reenviado nas execuções seguintes.
 
-O comando está agendado para todo dia às 08:00, horário de Brasília. No servidor, o cron precisa chamar `php artisan schedule:run` a cada minuto. Quem pode editar clientes também dispara a mesma rotina no botão "Gerar cobranças agora", no dashboard. Uma cobrança de assinatura que já falhou é tentada de novo nas execuções seguintes. O e-mail usa o mailer configurado em `MAIL_*`.
+`cobrancas:gerar` está agendado para todo dia às 08:00, horário de Brasília, e `cobrancas:processar-fila` a cada minuto. No servidor, o cron precisa chamar `php artisan schedule:run` a cada minuto. Quem pode editar clientes também coloca o lote na fila no botão "Gerar cobranças agora", no dashboard. Uma cobrança de assinatura que já falhou volta para a fila nas execuções seguintes. A cobrança avulsa de um boleto continua saindo na hora, ao salvar. O e-mail usa o mailer configurado em `MAIL_*`.
 
 ### Importar clientes já cobrados
 
@@ -205,7 +205,7 @@ php artisan test --filter=test_formulario_de_assinatura_lista_as_periodicidades 
 
 ```
 app/
-├── Console/Commands/       # inter:verificar e cobrancas:gerar
+├── Console/Commands/       # inter:verificar, cobrancas:gerar e cobrancas:processar-fila
 ├── DTO/                    # DTOs de criação/atualização (ex.: CreateAssinaturaDTO)
 ├── Enums/                  # Periodicidade, SituacaoAssinatura, SituacaoLancamento, enums de Inter
 ├── Http/

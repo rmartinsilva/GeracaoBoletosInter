@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('cobrancas:gerar')->dailyAt('08:00')->timezone('America/Sao_Paulo');
+Schedule::command('cobrancas:processar-fila')->everyMinute()->timezone('America/Sao_Paulo')->withoutOverlapping();
