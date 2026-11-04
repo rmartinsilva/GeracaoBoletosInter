@@ -139,6 +139,8 @@ class PainelClienteTest extends TestCase
             ->assertSee('data-mascara="numero"', false)
             ->assertSee('data-mascara="cep"', false)
             ->assertSee('pattern="[^@\s]+@[^@\s]+\.[^@\s]+"', false)
+            ->assertSee('name="emails_adicionais"', false)
+            ->assertSee('Um endereço por linha.', false)
             ->assertDontSee('name="valor"', false)
             ->assertDontSee('name="periodicidade"', false);
 
@@ -214,6 +216,28 @@ class PainelClienteTest extends TestCase
         $this->assertSame('12345678000199', $cliente->cpf_cnpj);
         $this->assertSame('S/N', $cliente->numero);
         $this->assertSame('GO', $cliente->uf);
+    }
+
+    public function test_cadastro_guarda_os_emails_adicionais(): void
+    {
+        $this->comoAdmin()->post('/painel/clientes', $this->dadosValidos([
+            'email' => 'financeiro@paoquente.com.br',
+            'emails_adicionais' => "Financeiro@PaoQuente.com.br\nContato@Cliente.com.br, outro@cliente.com.br",
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            "contato@cliente.com.br\noutro@cliente.com.br",
+            Cliente::query()->sole()->emails_adicionais,
+        );
+    }
+
+    public function test_cadastro_rejeita_email_adicional_invalido(): void
+    {
+        $this->comoAdmin()->post('/painel/clientes', $this->dadosValidos([
+            'emails_adicionais' => "valido@cliente.com.br\nsem-arroba",
+        ]))->assertSessionHasErrors(['emails_adicionais' => 'Informe e-mails adicionais válidos, um por linha.']);
+
+        $this->assertSame(0, Cliente::query()->count());
     }
 
     public function test_pessoa_fisica_nao_aceita_cnpj(): void

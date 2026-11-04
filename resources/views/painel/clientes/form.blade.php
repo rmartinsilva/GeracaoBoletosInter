@@ -115,7 +115,20 @@
                            title="Informe um e-mail válido, como financeiro@cliente.com.br"
                            class="painel-input painel-focus-ring pl-10">
                 </div>
-                <p class="mt-1 text-sm painel-text-secondary">Endereço que vai receber os boletos</p>
+                <p class="mt-1 text-sm painel-text-secondary">Endereço principal que vai receber os boletos</p>
+            </div>
+
+            <div>
+                <label for="emails_adicionais" class="painel-label">
+                    Outros e-mails
+                </label>
+                <textarea id="emails_adicionais"
+                          name="emails_adicionais"
+                          rows="4"
+                          maxlength="3000"
+                          placeholder="financeiro2@cliente.com.br"
+                          class="painel-input painel-focus-ring">{{ old('emails_adicionais', $clienteEdit->emails_adicionais ?? '') }}</textarea>
+                <p class="mt-1 text-sm painel-text-secondary">Um endereço por linha. A cobrança é enviada para o e-mail principal e para estes.</p>
             </div>
 
             <!-- Nome do contato -->

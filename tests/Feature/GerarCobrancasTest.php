@@ -138,6 +138,57 @@ class GerarCobrancasTest extends TestCase
         $this->assertSame(1, $this->postsDeEmissao());
     }
 
+    public function test_envia_para_todos_os_emails_do_cliente_e_a_copia_oculta(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        ConfiguracaoCobranca::atual()->update(['email_copia' => 'conferencia@empresa.com.br']);
+        $cliente = Cliente::factory()->comPagador()->create([
+            'email' => 'financeiro@paoquente.com.br',
+            'emails_adicionais' => "contato@paoquente.com.br\noutro@paoquente.com.br",
+        ]);
+        Assinatura::factory()->create([
+            'cliente_id' => $cliente->id,
+            'descricao' => 'Mensalidade',
+            'valor' => 150,
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+        ]);
+        $this->fingirBoletoPronto();
+
+        $this->artisan('cobrancas:gerar')->assertOk();
+
+        Mail::assertSent(CobrancaEmitida::class, function (CobrancaEmitida $mail): bool {
+            return $mail->hasTo('financeiro@paoquente.com.br')
+                && $mail->hasTo('contato@paoquente.com.br')
+                && $mail->hasTo('outro@paoquente.com.br')
+                && $mail->hasBcc('conferencia@empresa.com.br');
+        });
+    }
+
+    public function test_nao_repete_a_copia_oculta_quando_ela_ja_e_destinataria(): void
+    {
+        $this->travelTo('2031-06-05 15:00:00');
+        ConfiguracaoCobranca::atual()->update(['email_copia' => 'financeiro@paoquente.com.br']);
+        $cliente = Cliente::factory()->comPagador()->create([
+            'email' => 'financeiro@paoquente.com.br',
+        ]);
+        Assinatura::factory()->create([
+            'cliente_id' => $cliente->id,
+            'dia_vencimento' => 10,
+            'dia_geracao' => 5,
+            'data_inicio' => '2031-01-10',
+        ]);
+        $this->fingirBoletoPronto();
+
+        $this->artisan('cobrancas:gerar')->assertOk();
+
+        Mail::assertSent(CobrancaEmitida::class, function (CobrancaEmitida $mail): bool {
+            return $mail->hasTo('financeiro@paoquente.com.br')
+                && ! $mail->hasBcc('financeiro@paoquente.com.br');
+        });
+    }
+
     public function test_sem_dados_do_pagador_grava_o_erro_e_nao_chama_o_banco(): void
     {
         $this->travelTo('2031-06-05 15:00:00');
@@ -235,6 +286,20 @@ class GerarCobrancasTest extends TestCase
         $this->assertNotNull($evento);
         $this->assertSame('0 8 * * *', $evento->expression);
         $this->assertSame('America/Sao_Paulo', $evento->timezone);
+    }
+
+    private function fingirBoletoPronto(): void
+    {
+        Http::fake([
+            self::BASE.'/oauth/v2/token' => Http::response(['access_token' => 'token-teste', 'expires_in' => 3600]),
+            self::BASE.'/cobranca/v3/cobrancas/'.self::CODIGO.'/pdf' => Http::response(['pdf' => base64_encode('%PDF-1.4')]),
+            self::BASE.'/cobranca/v3/cobrancas/'.self::CODIGO => Http::response([
+                'cobranca' => ['situacao' => 'A_RECEBER'],
+                'boleto' => ['linhaDigitavel' => '34191', 'nossoNumero' => '17'],
+                'pix' => ['pixCopiaECola' => '000201'],
+            ]),
+            self::BASE.'/cobranca/v3/cobrancas' => Http::response(['codigoSolicitacao' => self::CODIGO]),
+        ]);
     }
 
     private function postsDeEmissao(): int

@@ -210,6 +210,8 @@ return [
         'dia_geracao' => 'dia de geração',
         'corpo_email' => 'texto do e-mail',
         'email_falha' => 'e-mail de falha',
+        'email_copia' => 'cópia oculta',
+        'emails_adicionais' => 'outros e-mails',
         'cpf_cnpj' => 'CPF ou CNPJ',
         'cep' => 'CEP',
         'endereco' => 'endereço',

@@ -42,6 +42,18 @@
             Recebe um aviso quando a emissão do boleto falha. O mesmo motivo não é reenviado nas execuções seguintes.
         </p>
 
+        <label for="email_copia" class="painel-label mt-8">Cópia oculta</label>
+        <input type="email"
+               id="email_copia"
+               name="email_copia"
+               value="{{ old('email_copia', $emailCopia) }}"
+               maxlength="255"
+               placeholder="conferencia@empresa.com.br"
+               class="painel-input painel-focus-ring">
+        <p class="mt-2 text-sm painel-text-secondary">
+            Toda cobrança enviada ao cliente também vai, em cópia oculta, para este endereço. O cliente não vê este destinatário. Serve para conferir os envios.
+        </p>
+
         <label for="corpo_email" class="painel-label mt-8">
             Texto do e-mail <span class="text-red-500">*</span>
         </label>

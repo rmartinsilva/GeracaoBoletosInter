@@ -15,6 +15,9 @@
                     <span class="badge {{ $clienteAtivo ? 'badge-success' : 'badge-warning' }}">{{ $situacaoCliente->rotulo() }}</span>
                 </div>
                 <p class="painel-text-secondary mt-1">{{ $cliente->email }}</p>
+                @if (! empty($cliente->emails_adicionais))
+                    <p class="painel-text-secondary whitespace-pre-line">{{ $cliente->emails_adicionais }}</p>
+                @endif
                 <p class="painel-text-secondary">Contato: {{ $cliente->nome_contato }}</p>
                 @if ($cliente->cidade)
                     <p class="painel-text-secondary">{{ $cliente->endereco }}{{ $cliente->numero ? ', '.$cliente->numero : '' }} — {{ $cliente->cidade }}/{{ $cliente->uf }}</p>

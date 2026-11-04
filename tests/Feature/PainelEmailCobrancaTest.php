@@ -28,6 +28,7 @@ class PainelEmailCobrancaTest extends TestCase
             ->assertOk()
             ->assertSee('E-mail da cobrança')
             ->assertSee('E-mail de falha')
+            ->assertSee('Cópia oculta')
             ->assertSee('{nome}', false)
             ->assertSee('{linha_digitavel}', false)
             ->assertSee('O boleto está em anexo.', false);
@@ -41,6 +42,7 @@ class PainelEmailCobrancaTest extends TestCase
             ->put(route('cobranca.email.update'), [
                 'corpo_email' => $texto,
                 'email_falha' => 'operador@exemplo.com',
+                'email_copia' => 'Conferencia@Empresa.com.br',
             ])
             ->assertRedirect(route('cobranca.email.edit'))
             ->assertSessionHas('success', 'Configuração da cobrança atualizada com sucesso!');
@@ -48,6 +50,7 @@ class PainelEmailCobrancaTest extends TestCase
         $configuracao = ConfiguracaoCobranca::atual();
         $this->assertSame($texto, $configuracao->corpo_email);
         $this->assertSame('operador@exemplo.com', $configuracao->email_falha);
+        $this->assertSame('conferencia@empresa.com.br', $configuracao->email_copia);
     }
 
     public function test_sem_permissao_de_editar_cliente_nao_abre_o_texto(): void

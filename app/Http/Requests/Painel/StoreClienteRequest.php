@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Painel;
 
 use App\Enums\TipoPessoa;
+use App\Support\ListaDeEmails;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -27,6 +28,32 @@ class StoreClienteRequest extends FormRequest
         return [
             'nome' => 'required|string|max:255',
             'email' => ['required', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[^@\s]+$/', 'max:255'],
+            'emails_adicionais' => ['nullable', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) || trim($value) === '') {
+                    return;
+                }
+
+                $principal = mb_strtolower(trim((string) $this->input('email', '')));
+                $emails = ListaDeEmails::separar($value);
+
+                if (count(array_filter($emails, fn (string $email): bool => $email !== $principal)) > ListaDeEmails::LIMITE) {
+                    $fail('Informe no máximo 10 e-mails adicionais.');
+
+                    return;
+                }
+
+                foreach ($emails as $email) {
+                    if ($email === $principal) {
+                        continue;
+                    }
+
+                    if (! ListaDeEmails::valido($email)) {
+                        $fail('Informe e-mails adicionais válidos, um por linha.');
+
+                        return;
+                    }
+                }
+            }],
             'nome_contato' => 'required|string|max:255',
             'tipo_pessoa' => ['nullable', Rule::enum(TipoPessoa::class)],
             'cpf_cnpj' => ['nullable', 'regex:/^(\d{11}|\d{14})$/', function (string $attribute, mixed $value, \Closure $fail): void {
@@ -64,6 +91,7 @@ class StoreClienteRequest extends FormRequest
             'email.email' => 'Informe um e-mail válido.',
             'email.regex' => 'Informe um e-mail válido.',
             'email.max' => 'O e-mail deve ter no máximo 255 caracteres.',
+            'emails_adicionais.string' => 'Informe e-mails adicionais válidos, um por linha.',
             'nome_contato.required' => 'O nome do contato é obrigatório.',
             'nome_contato.max' => 'O nome do contato deve ter no máximo 255 caracteres.',
             'tipo_pessoa.enum' => 'Escolha pessoa física ou pessoa jurídica.',
@@ -87,6 +115,7 @@ class StoreClienteRequest extends FormRequest
         $cep = preg_replace('/\D/', '', (string) $this->input('cep', '')) ?? '';
         $uf = strtoupper(trim((string) $this->input('uf', '')));
         $email = mb_strtolower(trim((string) $this->input('email', '')));
+        $adicionais = trim((string) $this->input('emails_adicionais', ''));
         $numero = strtoupper(trim((string) $this->input('numero', '')));
         $numero = preg_replace('/\s+/', '', $numero) ?? '';
 
@@ -96,6 +125,7 @@ class StoreClienteRequest extends FormRequest
 
         $this->merge([
             'email' => $email === '' ? null : $email,
+            'emails_adicionais' => $adicionais === '' ? null : $adicionais,
             'tipo_pessoa' => $this->vazio($this->input('tipo_pessoa')),
             'cpf_cnpj' => $cpf === '' ? null : $cpf,
             'cep' => $cep === '' ? null : $cep,

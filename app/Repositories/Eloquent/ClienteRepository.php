@@ -24,6 +24,7 @@ class ClienteRepository implements ClienteRepositoryInterface
                 $query->where(function ($query) use ($filtro) {
                     $query->where('nome', 'like', "%{$filtro}%")
                         ->orWhere('email', 'like', "%{$filtro}%")
+                        ->orWhere('emails_adicionais', 'like', "%{$filtro}%")
                         ->orWhere('nome_contato', 'like', "%{$filtro}%");
                 });
             })

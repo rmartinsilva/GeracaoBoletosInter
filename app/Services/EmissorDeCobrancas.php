@@ -224,18 +224,28 @@ class EmissorDeCobrancas
         $lancamento->pix_copia_cola = is_string($pix) ? $pix : null;
 
         [$cliente, $descricao] = $this->origem($lancamento);
+        $configuracao = ConfiguracaoCobranca::atual();
         $texto = $this->corpoEmail->montar(
-            ConfiguracaoCobranca::atual()->corpo_email,
+            $configuracao->corpo_email,
             $cliente,
             $descricao,
             $lancamento,
         );
 
-        if (! is_string($cliente->email) || filter_var($cliente->email, FILTER_VALIDATE_EMAIL) === false) {
+        $destinos = $cliente->emailsDeCobranca();
+
+        if ($destinos === []) {
             throw new RegraNegocioException('O cliente '.$cliente->nome.' precisa de um e-mail para receber o boleto.');
         }
 
-        Mail::to($cliente->email)->send(new CobrancaEmitida(
+        $envio = Mail::to($destinos);
+        $copia = is_string($configuracao->email_copia) ? mb_strtolower(trim($configuracao->email_copia)) : '';
+
+        if ($copia !== '' && ! in_array($copia, $destinos, true)) {
+            $envio->bcc($copia);
+        }
+
+        $envio->send(new CobrancaEmitida(
             texto: $texto,
             assunto: 'Cobrança: '.$descricao,
             caminhoPdf: $caminho,

@@ -20,6 +20,7 @@ class EmailCobrancaController extends PainelController
             'listaPermissoes' => $this->listaPermissoes,
             'corpo' => $configuracao->corpo_email,
             'emailFalha' => $configuracao->email_falha,
+            'emailCopia' => $configuracao->email_copia,
         ]);
     }
 
@@ -31,6 +32,7 @@ class EmailCobrancaController extends PainelController
         $configuracao->update([
             'corpo_email' => $request->validated('corpo_email'),
             'email_falha' => $request->validated('email_falha'),
+            'email_copia' => $request->validated('email_copia'),
         ]);
 
         return redirect()

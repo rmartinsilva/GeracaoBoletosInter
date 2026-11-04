@@ -113,6 +113,9 @@
                             <td class="painel-table-td">
                                 <a href="{{ route('clientes.show', $clienteItem->id) }}" class="text-sm font-medium painel-text-primary hover:underline">{{ $clienteItem->nome }}</a>
                                 <div class="text-sm painel-text-secondary">{{ $clienteItem->email }}</div>
+                                @if (! empty($clienteItem->emails_adicionais))
+                                    <div class="text-sm painel-text-secondary whitespace-pre-line">{{ $clienteItem->emails_adicionais }}</div>
+                                @endif
                             </td>
                             <td class="painel-table-td whitespace-nowrap">
                                 <div class="text-sm painel-text-primary">{{ $clienteItem->nome_contato }}</div>

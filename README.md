@@ -7,7 +7,7 @@ Aplicação web em Laravel para gerenciar clientes e cobranças mensais (assinat
 O painel já cobre o cadastro e o acompanhamento das cobranças:
 
 - Painel administrativo em `/painel` com login por `login` (não por e-mail), grupos de usuário e permissões por chave (`usuario_*` e `cliente_*`).
-- Cadastro de usuários e de clientes (nome, e-mail, contato e os dados do pagador: tipo de pessoa, CPF ou CNPJ, endereço, cidade, UF e CEP).
+- Cadastro de usuários e de clientes (nome, e-mail principal, outros e-mails, contato e os dados do pagador: tipo de pessoa, CPF ou CNPJ, endereço, cidade, UF e CEP). A cobrança é enviada para todos os e-mails do cliente.
 - Cadastro de assinaturas: descrição, valor, periodicidade (mensal ou anual), dia de vencimento, dia de geração, data de início e de fim, e situação (ativa ou encerrada). A cobrança avulsa fica na ficha do cliente e emite o boleto na hora, só com descrição, valor e vencimento.
 - Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento. Com o webhook cadastrado, o Banco Inter também quita o lançamento quando a cobrança é recebida.
 - Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
@@ -67,7 +67,7 @@ Rotas principais:
 - `/painel/login` e `/painel/logout` — autenticação do painel.
 - `/painel` — dashboard (requer sessão autenticada no guard `painel`).
 - `/painel/usuarios`, `/painel/clientes` — cadastros (protegidos por permissão).
-- `/painel/cobranca/email` — texto do e-mail enviado com o boleto (quem tem permissão `cliente_editar`).
+- `/painel/cobranca/email` — texto do e-mail enviado com o boleto, aviso de falha e cópia oculta (quem tem permissão `cliente_editar`). A cópia oculta recebe toda cobrança disparada, sem o cliente ver esse endereço.
 - `/painel/clientes/{cliente}/assinaturas/...` — assinaturas e lançamentos do cliente.
 - `POST /inter/cobrancas/webhook` — aviso do Banco Inter (paga, cancelada ou expirada). Não pede login.
 

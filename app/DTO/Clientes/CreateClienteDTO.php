@@ -4,6 +4,7 @@ namespace App\DTO\Clientes;
 
 use App\Enums\TipoPessoa;
 use App\Http\Requests\Painel\StoreClienteRequest;
+use App\Support\ListaDeEmails;
 
 class CreateClienteDTO
 {
@@ -20,6 +21,7 @@ class CreateClienteDTO
         public ?string $bairro = null,
         public ?string $cidade = null,
         public ?string $uf = null,
+        public ?string $emails_adicionais = null,
     ) {}
 
     public static function makeFromRequest(StoreClienteRequest $request): self
@@ -39,6 +41,7 @@ class CreateClienteDTO
             $request->validated('bairro'),
             $request->validated('cidade'),
             $request->validated('uf'),
+            ListaDeEmails::gravar($request->validated('emails_adicionais'), $request->validated('email')),
         );
     }
 }
