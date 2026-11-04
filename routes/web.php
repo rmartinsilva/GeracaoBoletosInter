@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Inter\WebhookCobrancaController;
 use App\Http\Controllers\Painel;
 use App\Http\Controllers\Site;
 use Illuminate\Support\Facades\Route;
@@ -7,6 +8,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('web')->group(function () {
 
     Route::get('/', [Site\SiteController::class, 'index'])->name('site.index');
+
+    Route::post('/inter/cobrancas/webhook', [WebhookCobrancaController::class, 'receber'])
+        ->name('inter.cobrancas.webhook');
 
     /* Autenticação Painel */
     Route::controller(Painel\AutenticacaoController::class)->group(function () {

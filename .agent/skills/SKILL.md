@@ -55,7 +55,7 @@ A API usada é a Cobrança v3 (boleto com Pix). A v2 foi descontinuada. O client
 - O token dura 60 minutos, é reutilizado pelo cache e não é impresso. Os escopos padrão são `boleto-cobranca.read` e `boleto-cobranca.write`.
 - Havendo mais de uma conta na aplicação, `INTER_CONTA_CORRENTE` vai no cabeçalho `x-conta-corrente` (só números, com o dígito, sem zeros à esquerda).
 - `CobrancaInterService` emite, consulta, lista, resume, edita, cancela e baixa o PDF. `pagarSandbox()` simula o pagamento e só funciona no sandbox.
-- `WebhookCobrancaInterService` cadastra a URL HTTPS que recebe cobrança paga, cancelada ou expirada.
+- `WebhookCobrancaInterService` cadastra a URL HTTPS que recebe cobrança paga, cancelada ou expirada. O aviso chega em `POST /inter/cobrancas/webhook`: recebida ou marcada como recebida quita o lançamento; cancelada encerra o que ainda está em aberto. Cobrança desconhecida é ignorada, e o mesmo aviso não muda a data de um pagamento já gravado.
 - `php artisan inter:verificar` autentica no ambiente configurado. Certificado e chave ficam fora do git, em `INTER_CERTIFICADO` e `INTER_CHAVE`.
 
 ### Autenticação do painel (guard `painel`)

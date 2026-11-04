@@ -12,7 +12,7 @@ O painel já cobre o cadastro e o acompanhamento das cobranças:
 - Geração dos lançamentos de cada período a partir da assinatura, com registro de pagamento e cancelamento de lançamento.
 - Emissão do boleto no dia de geração e envio do PDF por e-mail quando o Banco Inter devolve o boleto. O texto desse e-mail é único e fica em `/painel/cobranca/email`.
 
-A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. Quem dispara isso no dia a dia é o comando `php artisan cobrancas:gerar`.
+A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP em `app/Services/Inter` emite, consulta, lista, edita, cancela, baixa o PDF e cadastra webhook de cobrança. Quem dispara isso no dia a dia é o comando `php artisan cobrancas:gerar`. O retorno do banco entra em `POST /inter/cobrancas/webhook` e quita o lançamento quando a cobrança é recebida.
 
 ## Tecnologias
 

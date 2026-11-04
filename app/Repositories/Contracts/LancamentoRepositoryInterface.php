@@ -71,6 +71,16 @@ interface LancamentoRepositoryInterface
     public function buscarPorCompetencia(int $assinaturaId, string $competencia): ?Lancamento;
 
     /**
+     * Lançamento pelo identificador devolvido pelo Banco Inter, ou null.
+     */
+    public function buscarPorCodigoSolicitacao(string $codigoSolicitacao): ?Lancamento;
+
+    /**
+     * Lançamento pelo id local, ou null.
+     */
+    public function buscarPorId(int $id): ?Lancamento;
+
+    /**
      * Cobranças em aberto já emitidas no banco e ainda sem e-mail.
      *
      * @return Collection<int, Lancamento>

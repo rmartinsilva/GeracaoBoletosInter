@@ -122,6 +122,18 @@ class LancamentoRepository implements LancamentoRepositoryInterface
             ->first();
     }
 
+    public function buscarPorCodigoSolicitacao(string $codigoSolicitacao): ?Lancamento
+    {
+        return $this->model->newQuery()
+            ->where('codigo_solicitacao', $codigoSolicitacao)
+            ->first();
+    }
+
+    public function buscarPorId(int $id): ?Lancamento
+    {
+        return $this->model->newQuery()->find($id);
+    }
+
     public function pendentesDeEmail(): Collection
     {
         return $this->model->newQuery()
