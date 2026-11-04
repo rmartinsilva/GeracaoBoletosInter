@@ -19,22 +19,30 @@ A integração com o Banco Inter autentica e conversa com a API: o cliente HTTP 
 - PHP 8.4
 - Laravel 13
 - Tailwind CSS pelo CDN no painel; a landing page usa CSS estático em `public/assets/css/site.css`
-- SQLite (padrão do `.env.example`)
+- MySQL
 - PHPUnit 12
 
 ## Requisitos e instalação
 
-Requisitos: PHP 8.4 e Composer.
+Requisitos: PHP 8.4, Composer e MySQL.
 
 ```bash
 composer install
 cp .env.example .env
 php artisan key:generate
-touch database/database.sqlite
 php artisan migrate --seed
 ```
 
-O `.env.example` usa SQLite por padrão. Para outro banco, ajuste as variáveis `DB_*` do `.env`.
+A aplicação usa MySQL. O `.env.example` já aponta para o banco `bancointer` em `127.0.0.1:3306`. Crie esse banco antes de migrar e preencha `DB_USERNAME` e `DB_PASSWORD` no `.env`:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=bancointer
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
 Para subir o servidor, a fila e os logs juntos:
 
@@ -138,7 +146,7 @@ O comando lê as cobranças do ambiente em `INTER_AMBIENTE` e cadastra cada paga
 
 ## Testes
 
-Os testes rodam sempre em SQLite em memória, independentemente do banco configurado no `.env`:
+Os testes não usam o MySQL do `.env`. Eles rodam em SQLite em memória, para não alterar o banco da aplicação:
 
 ```bash
 composer test          # limpa o cache de config e roda a suíte inteira

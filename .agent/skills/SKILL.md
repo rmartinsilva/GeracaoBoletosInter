@@ -13,7 +13,7 @@ Código de domínio, textos da interface, mensagens de validação e documentaç
 composer install
 cp .env.example .env
 php artisan key:generate
-touch database/database.sqlite   # o .env.example usa SQLite por padrão
+# O .env.example usa MySQL, banco bancointer. Crie o banco antes de migrar.
 php artisan migrate --seed       # cria o usuário admin: admin / admin123
 
 # O PermissoesSeeder é idempotente: num banco já populado ele só cadastra as
