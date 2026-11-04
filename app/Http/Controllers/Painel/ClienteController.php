@@ -202,15 +202,15 @@ class ClienteController extends PainelController
                     ->withErrors(['error' => 'Cliente não encontrado.']);
             }
 
-            return redirect()->route('clientes.show', $id)
+            return $this->voltar()
                 ->with('success', $this->mensagemInativacao($encerradas));
         } catch (RegraNegocioException $e) {
-            return redirect()->route('clientes.show', $id)
+            return $this->voltar()
                 ->withErrors(['error' => $e->getMessage()]);
         } catch (\Exception $e) {
             report($e);
 
-            return redirect()->route('clientes.show', $id)
+            return $this->voltar()
                 ->withErrors(['error' => 'Erro ao inativar cliente: '.$e->getMessage()]);
         }
     }
@@ -228,14 +228,22 @@ class ClienteController extends PainelController
                     ->withErrors(['error' => 'Cliente não encontrado.']);
             }
 
-            return redirect()->route('clientes.show', $id)
+            return $this->voltar()
                 ->with('success', 'Cliente reativado. As assinaturas encerradas continuam encerradas; cadastre uma nova se a cobrança voltar.');
         } catch (\Exception $e) {
             report($e);
 
-            return redirect()->route('clientes.show', $id)
+            return $this->voltar()
                 ->withErrors(['error' => 'Erro ao reativar cliente: '.$e->getMessage()]);
         }
+    }
+
+    /**
+     * Volta para a tela de onde a ação saiu. Na listagem, a pessoa permanece nela.
+     */
+    private function voltar(): RedirectResponse
+    {
+        return redirect()->to(url()->previous(route('clientes.index')));
     }
 
     private function mensagemInativacao(int $encerradas): string

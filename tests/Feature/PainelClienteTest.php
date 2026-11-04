@@ -399,6 +399,16 @@ class PainelClienteTest extends TestCase
         $this->comoAdmin()->get('/painel/clientes/abc/editar')->assertNotFound();
     }
 
+    public function test_listagem_mostra_ativos_antes_dos_inativos(): void
+    {
+        Cliente::factory()->inativo()->create(['nome' => 'Ana Inativa']);
+        Cliente::factory()->create(['nome' => 'Zeca Ativo']);
+
+        $this->comoAdmin()->get('/painel/clientes')
+            ->assertOk()
+            ->assertSeeInOrder(['Zeca Ativo', 'Ana Inativa']);
+    }
+
     public function test_listagem_filtra_clientes_inativos(): void
     {
         Cliente::factory()->create(['nome' => 'Cliente Ativo']);
@@ -443,8 +453,9 @@ class PainelClienteTest extends TestCase
         ]);
 
         $this->comoAdmin()
+            ->from(route('clientes.index'))
             ->post(route('clientes.inativar', $cliente))
-            ->assertRedirect(route('clientes.show', $cliente))
+            ->assertRedirect(route('clientes.index'))
             ->assertSessionHas('success', 'Cliente inativado. A assinatura ativa foi encerrada e os lançamentos com vencimento posterior foram cancelados.');
 
         $this->assertSame(SituacaoCliente::Inativo, $cliente->fresh()->situacao);
@@ -473,8 +484,9 @@ class PainelClienteTest extends TestCase
         ]);
 
         $this->comoAdmin()
+            ->from(route('clientes.index'))
             ->post(route('clientes.inativar', $cliente))
-            ->assertRedirect(route('clientes.show', $cliente));
+            ->assertRedirect(route('clientes.index'));
 
         $this->assertSame('2031-08-01', $assinatura->fresh()->data_fim->toDateString());
         $this->assertSame(SituacaoLancamento::Cancelado, $lancamento->fresh()->situacao);
@@ -486,8 +498,9 @@ class PainelClienteTest extends TestCase
         $assinatura = Assinatura::factory()->encerrada()->create(['cliente_id' => $cliente->id]);
 
         $this->comoAdmin()
+            ->from(route('clientes.index'))
             ->post(route('clientes.reativar', $cliente))
-            ->assertRedirect(route('clientes.show', $cliente))
+            ->assertRedirect(route('clientes.index'))
             ->assertSessionHas('success', 'Cliente reativado. As assinaturas encerradas continuam encerradas; cadastre uma nova se a cobrança voltar.');
 
         $this->assertSame(SituacaoCliente::Ativo, $cliente->fresh()->situacao);

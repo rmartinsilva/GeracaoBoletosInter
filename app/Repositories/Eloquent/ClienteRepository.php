@@ -36,6 +36,7 @@ class ClienteRepository implements ClienteRepositoryInterface
                     $query->where('situacao', SituacaoAssinatura::Ativa);
                 },
             ])
+            ->orderByRaw('case when situacao = ? then 0 else 1 end', [SituacaoCliente::Ativo->value])
             ->orderBy('nome', 'asc')
             ->paginate($porPagina, ['*'], 'page', $pagina);
 
