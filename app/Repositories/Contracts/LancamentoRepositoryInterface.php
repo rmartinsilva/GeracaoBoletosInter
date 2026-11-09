@@ -2,7 +2,10 @@
 
 namespace App\Repositories\Contracts;
 
+use App\DTO\Cobrancas\FiltroListagemCobranca;
+use App\DTO\Cobrancas\ResumoListagemCobranca;
 use App\Models\Lancamento;
+use App\Repositories\PaginationPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -126,4 +129,14 @@ interface LancamentoRepositoryInterface
      * Marca que o aviso desta falha já foi enviado ao responsável.
      */
     public function registrarAvisoDeFalha(Lancamento $lancamento, CarbonInterface $quando): void;
+
+    /**
+     * Cobranças com vencimento no período, de assinatura ou avulsas.
+     */
+    public function paginarPorPeriodo(FiltroListagemCobranca $filtro, int $pagina, int $porPagina): PaginationPresenter;
+
+    /**
+     * Quantidade e valores do período, para conferir emissão e baixa.
+     */
+    public function resumirPorPeriodo(FiltroListagemCobranca $filtro): ResumoListagemCobranca;
 }

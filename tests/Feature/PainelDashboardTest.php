@@ -43,6 +43,8 @@ class PainelDashboardTest extends TestCase
         $response->assertSee('Geração de Cobranças');
         $response->assertSee('Clientes');
         $response->assertSee(route('clientes.index'), false);
+        $response->assertSee('Emissão e baixa por período');
+        $response->assertSee(route('cobrancas.index'), false);
         $response->assertSee('Usuários');
         $response->assertSee('Gerencie os clientes e os usuários do sistema');
         $response->assertDontSee('Banner Principal');

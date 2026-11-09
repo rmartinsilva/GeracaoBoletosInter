@@ -23,6 +23,7 @@ Route::middleware('web')->group(function () {
     /* Rotas Protegidas do Painel */
     Route::prefix('painel')->middleware('auth:painel')->group(function () {
         Route::get('/', [Painel\AutenticacaoController::class, 'principal'])->name('painel.dashboard');
+        Route::get('/cobrancas', [Painel\CobrancasController::class, 'index'])->name('cobrancas.index');
         Route::post('/cobrancas/gerar', [Painel\GeracaoDeCobrancasController::class, 'executar'])->name('cobrancas.gerar');
 
         // Configurações do usuário (AJAX)
